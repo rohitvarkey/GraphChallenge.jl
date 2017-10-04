@@ -1,4 +1,9 @@
 module GraphChallenge
+
+using SimpleWeightedGraphs
+using LightGraphs
+using Distributions
+
 export load_graph!, initialize_edge_counts, partition
 
 # package code goes here
