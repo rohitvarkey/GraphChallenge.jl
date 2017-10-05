@@ -198,10 +198,8 @@ function compute_overall_entropy(
     )
     rows, cols = findn(M)  # all non-zero entries
     summation_term = 0.0
-    for col in cols
-        for row in rows
-            summation_term -= M[row, col] * log(M[row, col]/ d_in[row] / d_out[col])
-        end
+    for (col, row) in zip(cols, rows)
+        summation_term -= M[row, col] * log(M[row, col]/ d_in[row] / d_out[col])
     end
     model_S_term = B^2 / E
     model_S = E * (1 + model_S_term) * log(1 + model_S_term) -

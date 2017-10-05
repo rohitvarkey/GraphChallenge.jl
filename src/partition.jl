@@ -99,7 +99,7 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
 
         # compute the global entropy for MCMC convergence criterion
-        overall_entropy = compute_overall_entropy(
+        @show overall_entropy = compute_overall_entropy(
             M, d_out, d_in, num_blocks, nv(g), ne(g)
         )
 
@@ -178,8 +178,12 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
                end
            end
         end
-        println("$total_num_nodal_moves nodal moves performed")
 
+        # compute the global entropy for MCMC convergence criterion
+        overall_entropy = compute_overall_entropy(
+            M, d_out, d_in, num_blocks, nv(g), ne(g)
+        )
+        println("$total_num_nodal_moves nodal moves performed with entropy of $overall_entropy")
         optimal_num_blocks_found = true #FIXME: Remove once all done
 
     end
