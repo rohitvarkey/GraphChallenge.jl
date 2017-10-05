@@ -13,6 +13,15 @@ function initialize_edge_counts!(
     end
 end
 
+function compute_block_neighbors_and_degrees(M::Array{Int64, 2}, block::Int64)
+    out_neighbors = findn(M[:, block])
+    in_neighbors = findn(M[block, :])
+    neighbors = collect(Set(out_neighbors) ∪ Set(in_neighbors))
+    k_out = sum(M[:, out_neighbors])
+    k_in = sum(M[in_neighbors, :])
+    k = k_out + k_in
+    neighbors, k_out, k_in, k
+end
 function compute_block_degrees(M::Array{Int64, 2}, B::Int64)
     # Sum across rows to get the outdegrees for each block
     d_out = reshape(sum(M, 1), B)

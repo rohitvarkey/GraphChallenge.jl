@@ -13,7 +13,6 @@ function carry_out_best_merges(
         mergeTo = block_map[best_merge_for_each_block[mergeFrom]]
         counter += 1
         if mergeTo != mergeFrom
-            println("Merging $mergeFrom to $mergeTo")
             block_map[findin(block_map, mergeFrom)] = mergeTo
             b[findin(b, mergeFrom)] = mergeTo
             blocks_merged += 1
@@ -37,12 +36,9 @@ function agglomerative_updates(
     best_merge_for_each_block = fill(-1, num_blocks)
     delta_entropy_for_each_block = fill(Inf, num_blocks)
     for current_block = 1:num_blocks
-        out_neighbors = findn(M[:, current_block])
-        in_neighbors = findn(M[current_block, :])
-        neighbors = collect(Set(out_neighbors) ∪ Set(in_neighbors))
-        k_out = sum(M[:, out_neighbors])
-        k_in = sum(M[in_neighbors, :])
-        k = k_out + k_in
+        neighbors, k_out, k_in, k = compute_block_neighbors_and_degrees(
+            M, current_block
+        )
         for proposal_idx = 1:num_agg_proposals_per_block
             proposal = propose_new_partition(
                 M, current_block, b, num_blocks,
@@ -100,6 +96,23 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
         )
         M = initialize_edge_counts(T, g, num_blocks, partition)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
+
+        total_num_nodal_moves = 0
+        nodal_itr_delta_entropy = zeros(Int64, max_num_nodal_itr)
+        for nodal_itr in 1:max_num_nodal_itr
+            num_nodal_moves = 0
+            nodal_itr_delta_entropy[nodal_itr] = 0
+
+            for current_node in vertices(g)
+                current_block  = partition[current_node]
+                proposal = propose_new_partition(
+                    M, current_block, partition, num_blocks,
+                    d, all_neighbors(g, current_node), false
+                )
+            end
+        end
+
         optimal_num_blocks_found = true #FIXME: Remove once all done
+
     end
 end
