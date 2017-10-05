@@ -192,6 +192,24 @@ function compute_delta_entropy(
     delta
 end
 
+function compute_overall_entropy(
+        M::Array{Int64, 2}, d_out::Vector{Int64}, d_in::Vector{Int64},
+        B::Int64, N::Int64, E::Int64
+    )
+    rows, cols = findn(M)  # all non-zero entries
+    summation_term = 0.0
+    for col in cols
+        for row in rows
+            summation_term -= M[row, col] * log(M[row, col]/ d_in[row] / d_out[col])
+        end
+    end
+    model_S_term = B^2 / E
+    model_S = E * (1 + model_S_term) * log(1 + model_S_term) -
+        model_S_term * log(model_S_term) + N*log(B)
+    S = model_S + summation_term
+    return S
+end
+
 function compute_hastings_correction(
         s::Int64, M::Array{Int64, 2}, M_r_row::Vector{Int64},
         M_r_col::Vector{Int64}, B::Int64, d::Vector{Int64}, d_new::Vector{Int64},
@@ -269,6 +287,6 @@ function update_partition(
     M[r, :] = M_r_row
     M[:, s] = M_s_col
     M[s, :] = M_s_row
-    info("Updated partition")
+    #info("Updated partition")
     M
 end

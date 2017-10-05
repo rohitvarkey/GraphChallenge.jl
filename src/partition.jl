@@ -74,7 +74,7 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
 
     # nodal partition updates parameters
     # maximum number of iterations
-    max_num_nodal_itr = 100
+    max_num_nodal_itr = 10
     # stop iterating when the change in entropy falls below this fraction of the overall entropy
     # lowering this threshold results in more nodal update iterations and likely better performance, but longer runtime
     delta_entropy_threshold1 = 5e-4
@@ -83,6 +83,7 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
     # width of the moving average window for the delta entropy convergence criterion
     delta_entropy_moving_avg_window = 3
 
+    old_overall_entropy = [Inf, Inf, Inf]
     M = initialize_edge_counts(T, g, num_blocks, partition)
     d_out, d_in, d = compute_block_degrees(M, num_blocks)
     optimal_num_blocks_found = false
@@ -96,6 +97,11 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
         )
         M = initialize_edge_counts(T, g, num_blocks, partition)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
+
+        # compute the global entropy for MCMC convergence criterion
+        overall_entropy = compute_overall_entropy(
+            M, d_out, d_in, num_blocks, nv(g), ne(g)
+        )
 
         total_num_nodal_moves = 0
         nodal_itr_delta_entropy = zeros(max_num_nodal_itr)
@@ -118,7 +124,7 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
                     in_wts = [
                         floor(Int64, get_weight(g, n, current_node)) for n in in_n
                     ]
-                    info("Performing nodal move on $current_node")
+                    #info("Performing nodal move on $current_node")
                     blocks_out_count_map = countmap(
                         partition[out_n], Distributions.weights(out_wts)
                     )
@@ -154,6 +160,23 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
                     end
                 end
             end
+            # exit MCMC if the recent change in entropy falls below a small fraction of the overall entropy
+           if (nodal_itr >= delta_entropy_moving_avg_window)
+               window = (nodal_itr-delta_entropy_moving_avg_window+1):nodal_itr
+               if all(isfinite.(old_overall_entropy)) == false # golden ratio bracket not yet established
+                   if -mean(nodal_itr_delta_entropy[window]) <
+                       delta_entropy_threshold1 * overall_entropy
+                       println("Stopping at $nodal_itr iterations with $(nodal_itr_delta_entropy[nodal_itr]/overall_entropy)")
+                       break
+                   end
+               else # golden ratio bracket is established. Fine-tuning partition.
+                   if mean(itr_delta_entropy[window]) <
+                       delta_entropy_threshold2 * overall_entropy
+                       println("Stopping at $nodal_itr iterations with $(nodal_itr_delta_entropy[nodal_itr]/overall_entropy)")
+                       break
+                   end
+               end
+           end
         end
         println("$total_num_nodal_moves nodal moves performed")
 
