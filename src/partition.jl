@@ -84,6 +84,19 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
     delta_entropy_moving_avg_window = 3
 
     old_overall_entropy = [Inf, Inf, Inf]
+    best_partitions = Vector{Partition{Array{Int64, 2}}}(3)
+    for i=1:3
+        #Create dummy partitions
+        best_partitions[i] = Partition(
+            zeros(Int64, num_blocks, num_blocks),
+            Inf,
+            zeros(Int64, nv(g)),
+            zeros(Int64, nv(g)),
+            zeros(Int64, nv(g)),
+            zeros(Int64, nv(g)),
+            -1
+        )
+    end
     M = initialize_edge_counts(T, g, num_blocks, partition)
     d_out, d_in, d = compute_block_degrees(M, num_blocks)
     optimal_num_blocks_found = false
@@ -184,7 +197,21 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
             M, d_out, d_in, num_blocks, nv(g), ne(g)
         )
         println("$total_num_nodal_moves nodal moves performed with entropy of $overall_entropy")
-        optimal_num_blocks_found = true #FIXME: Remove once all done
-
+        new_partition, best_partitions, optimal_num_blocks_found, num_blocks_to_merge =
+            prepare_for_partition_on_next_num_blocks(
+                Partition(M, overall_entropy, partition, d, d_out, d_in, num_blocks),
+                best_partitions, num_block_reduction_rate
+            )
+        @show new_partition
+        @show best_partitions
+        M = new_partition.M
+        overall_entropy = new_partition.S
+        partition = new_partition.b
+        d = new_partition.d
+        d_out = new_partition.d_out
+        d_in = new_partition.d_in
+        old_overall_entropy = [x.S for x in best_partitions]
+        @show maximum(partition)
+        #optimal_num_blocks_found = true #FIXME: Remove once all done
     end
 end
