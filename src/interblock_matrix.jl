@@ -8,16 +8,18 @@ function initialize_edge_counts!(
     M::Array{Int64, 2}, g::SimpleWeightedDiGraph, B::Int64, b::Vector{Int64}
     )
     @assert size(M) == (B, B)
-    M = zeros(M, Int64) # create a zero matrix of B x B
     for edge in edges(g)
             M[b[dst(edge)], b[src(edge)]] += weight(edge)
     end
+end
+
+function compute_block_degrees(M::Array{Int64, 2}, B::Int64)
     # Sum across rows to get the outdegrees for each block
     d_out = reshape(sum(M, 1), B)
     # Sum across cols to get the indegrees for each block
     d_in = reshape(sum(M, 2), B)
     d = d_out + d_in
-    return M, d_out, d_in, d
+    return d_out, d_in, d
 end
 
 function initialize_edge_counts(
@@ -26,6 +28,7 @@ function initialize_edge_counts(
     )
     M = zeros(Int64, B, B)
     initialize_edge_counts!(M, g, B, b)
+    M
 end
 
 """Computes the new rows and cols in `M`, when all nodes from `r` are shifted to

@@ -87,11 +87,19 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
     # width of the moving average window for the delta entropy convergence criterion
     delta_entropy_moving_avg_window = 3
 
-    M, d_out, d_in, d = initialize_edge_counts(
-        T, g, num_blocks, partition
-    )
-
+    M = initialize_edge_counts(T, g, num_blocks, partition)
+    d_out, d_in, d = compute_block_degrees(M, num_blocks)
     optimal_num_blocks_found = false
-    partition = agglomerative_updates(M, num_blocks, partition, d, d_in, d_out,
-    num_agg_proposals_per_block=num_agg_proposals_per_block)
+
+    while optimal_num_blocks_found == false
+        info("Merging down from $num_blocks to $(floor(Int64, num_blocks * num_block_reduction_rate))")
+        partition = agglomerative_updates(
+            M, num_blocks, partition, d, d_in, d_out,
+            num_agg_proposals_per_block = num_agg_proposals_per_block,
+            num_block_reduction_rate = num_block_reduction_rate
+        )
+        M = initialize_edge_counts(T, g, num_blocks, partition)
+        d_out, d_in, d = compute_block_degrees(M, num_blocks)
+        optimal_num_blocks_found = true #FIXME: Remove once all done
+    end
 end
