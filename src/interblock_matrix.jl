@@ -192,6 +192,22 @@ function compute_delta_entropy(
     delta
 end
 
+function compute_hastings_correction(
+        s::Int64, M::Array{Int64, 2}, M_r_row::Vector{Int64},
+        M_r_col::Vector{Int64}, B::Int64, d::Vector{Int64}, d_new::Vector{Int64},
+        blocks_out_count_map, blocks_in_count_map
+    )
+    blocks = Set(keys(blocks_out_count_map)) ∪ Set(keys(blocks_in_count_map))
+    p_forward = 0.0
+    p_backward = 0.0
+    for t in blocks
+        degree = get(blocks_out_count_map, t, 0) + get(blocks_in_count_map, t, 0)
+        p_forward += degree * (M[t, s] + M[s, t] + 1) / (d[t] + B)
+        p_backward += degree * (M_r_row[t] + M_r_col[t] + 1) / (d_new[t] + B)
+    end
+    return p_backward / p_forward
+end
+
 function evaluate_proposal_agg(
     M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64,
     d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
@@ -211,7 +227,7 @@ function evaluate_proposal_agg(
 end
 
 function evaluate_nodal_proposal(
-    M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64,
+    M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64, β::Int64,
     d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
     k::Int64, k_in::Int64, k_out::Int64, self_edge_weight::Int64,
     blocks_out_count_map, blocks_in_count_map
@@ -228,11 +244,24 @@ function evaluate_nodal_proposal(
         @show find(x<0, M_s_row)
         @show find(x<0, M_s_col)
     end
-    
+
     new_degrees = [copy(degrees) for degrees in [d_out, d_in, d]]
     for (new_d, degree) in zip(new_degrees, [k_out, k_in, k])
         new_d[r] -= degree
         new_d[s] += degree
     end
 
+    hastings_correction = compute_hastings_correction(
+        s, M, M_r_row, M_r_col, num_blocks, d, new_degrees[3],
+        blocks_out_count_map, blocks_in_count_map
+    )
+
+    Δ = compute_delta_entropy(
+            M, r, s, M_r_col, M_s_col, M_r_row, M_s_col, d_out, d_in,
+            new_degrees[1], new_degrees[2]
+        )
+
+    p_accept = min(exp(β*Δ)*hastings_correction, 1)
+
+    M_r_row, M_r_col, M_s_row, M_s_col, Δ, p_accept
 end

@@ -98,7 +98,7 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
 
         total_num_nodal_moves = 0
-        nodal_itr_delta_entropy = zeros(Int64, max_num_nodal_itr)
+        nodal_itr_delta_entropy = zeros(max_num_nodal_itr)
         for nodal_itr in 1:max_num_nodal_itr
             num_nodal_moves = 0
             nodal_itr_delta_entropy[nodal_itr] = 0
@@ -132,14 +132,23 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
                     k_in = indegree(g, current_node)
                     k_out = outdegree(g, current_node)
 
-                    p_accept = evaluate_nodal_proposal(
-                        M, current_block, proposal, num_blocks, d, d_in, d_out,
-                        k_in + k_out, k_in, k_out, self_edge_weight,
+                    M_r_row, M_r_col, M_s_row, M_s_col, Δ, p_accept =
+                    evaluate_nodal_proposal(
+                        M, current_block, proposal, num_blocks, β,
+                        d, d_in, d_out, k_in + k_out, k_in, k_out,
+                        self_edge_weight,
                         blocks_out_count_map, blocks_in_count_map
                     )
+
+                    if rand() <= p_accept
+                        total_num_nodal_moves += 1
+                        num_nodal_moves += 1
+                        nodal_itr_delta_entropy[nodal_itr] += Δ
+                    end
                 end
             end
         end
+        println("$total_num_nodal_moves nodal moves performed")
 
         optimal_num_blocks_found = true #FIXME: Remove once all done
 
