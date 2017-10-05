@@ -40,6 +40,48 @@ function initialize_edge_counts(
     M
 end
 
+function compute_new_matrix(
+    M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64,
+    out_block_count_map, in_block_count_map, self_edge_weight::Int64
+    )
+
+    M_r_row = copy(M[r, :])
+    M_r_col = copy(M[:, r])
+    M_s_row = copy(M[s, :])
+    M_s_col = copy(M[:, s])
+
+    for (block, out_count) in out_block_count_map
+        M_r_col[block] -= out_count
+        M_s_col[block] += out_count
+        if block == r
+            M_r_row[r] -= out_count
+            M_r_row[s] += out_count
+        elseif block == s
+            M_s_row[r] -= out_count
+            M_s_row[s] += out_count
+        end
+    end
+
+    for (block, in_count) in in_block_count_map
+        M_r_row[block] -= in_count
+        M_s_row[block] += in_count
+        if block == r
+            M_r_col[r] -= in_count
+            M_r_col[s] += in_count
+        elseif block == s
+            M_s_col[r] -= in_count
+            M_s_col[s] += in_count
+        end
+    end
+
+    M_s_row[r] -= self_edge_weight
+    M_s_row[s] += self_edge_weight
+    M_s_col[r] -= self_edge_weight
+    M_s_col[s] += self_edge_weight
+
+    return M_r_row, M_r_col, M_s_row, M_s_col
+end
+
 """Computes the new rows and cols in `M`, when all nodes from `r` are shifted to
 block `s`."""
 function compute_new_matrix_agglomerative(
@@ -61,6 +103,7 @@ function compute_new_matrix_agglomerative(
     M_s_col[r] = 0
     M_s_col[s] += M[r, r] + M[s, r]
 
+    #TODO : Check self edge case
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
 

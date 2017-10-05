@@ -109,6 +109,33 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
                     M, current_block, partition, num_blocks,
                     d, all_neighbors(g, current_node), false
                 )
+                if (proposal != current_block)
+                    out_n = out_neighbors(g, current_node)
+                    in_n = in_neighbors(g, current_node)
+                    out_wts = [
+                        floor(Int64, get_weight(g, current_node, n)) for n in out_n
+                    ]
+                    in_wts = [
+                        floor(Int64, get_weight(g, n, current_node)) for n in in_n
+                    ]
+                    blocks_out_count_map = countmap(
+                        partition[out_n], Distributions.weights(out_wts)
+                    )
+                    blocks_in_count_map = countmap(
+                        partition[in_n], Distributions.weights(in_wts)
+                    )
+
+                    self_edge_weight = floor(
+                        Int64, get_weight(g, current_node, current_node)
+                    )
+
+                    M_r_row, M_r_col, M_s_row, M_s_col = compute_new_matrix(
+                        M, current_block, proposal, num_blocks,
+                        blocks_out_count_map, blocks_in_count_map,
+                        self_edge_weight
+                    )
+
+                end
             end
         end
 

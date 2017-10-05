@@ -3,6 +3,7 @@ module GraphChallenge
 using SimpleWeightedGraphs
 using LightGraphs
 using Distributions
+using StatsBase
 
 export load_graph!, initialize_edge_counts, compute_block_degrees, partition
 
