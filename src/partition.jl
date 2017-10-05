@@ -129,12 +129,14 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
                         Int64, get_weight(g, current_node, current_node)
                     )
 
-                    M_r_row, M_r_col, M_s_row, M_s_col = compute_new_matrix(
-                        M, current_block, proposal, num_blocks,
-                        blocks_out_count_map, blocks_in_count_map,
-                        self_edge_weight
-                    )
+                    k_in = indegree(g, current_node)
+                    k_out = outdegree(g, current_node)
 
+                    p_accept = evaluate_nodal_proposal(
+                        M, current_block, proposal, num_blocks, d, d_in, d_out,
+                        k_in + k_out, k_in, k_out, self_edge_weight,
+                        blocks_out_count_map, blocks_in_count_map
+                    )
                 end
             end
         end

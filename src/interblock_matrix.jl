@@ -209,3 +209,30 @@ function evaluate_proposal_agg(
         new_degrees[1], new_degrees[2]
     )
 end
+
+function evaluate_nodal_proposal(
+    M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64,
+    d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
+    k::Int64, k_in::Int64, k_out::Int64, self_edge_weight::Int64,
+    blocks_out_count_map, blocks_in_count_map
+    )
+
+    M_r_row, M_r_col, M_s_row, M_s_col = compute_new_matrix(
+        M, r, s, num_blocks,
+        blocks_out_count_map, blocks_in_count_map,
+        self_edge_weight
+    )
+    if minimum(minimum.([M_r_row, M_r_col, M_s_row, M_s_col])) < 0
+        @show find(x<0, M_r_row)
+        @show find(x<0, M_r_col)
+        @show find(x<0, M_s_row)
+        @show find(x<0, M_s_col)
+    end
+    
+    new_degrees = [copy(degrees) for degrees in [d_out, d_in, d]]
+    for (new_d, degree) in zip(new_degrees, [k_out, k_in, k])
+        new_d[r] -= degree
+        new_d[s] += degree
+    end
+
+end
