@@ -238,12 +238,6 @@ function evaluate_nodal_proposal(
         blocks_out_count_map, blocks_in_count_map,
         self_edge_weight
     )
-    if minimum(minimum.([M_r_row, M_r_col, M_s_row, M_s_col])) < 0
-        @show find(x<0, M_r_row)
-        @show find(x<0, M_r_col)
-        @show find(x<0, M_s_row)
-        @show find(x<0, M_s_col)
-    end
 
     new_degrees = [copy(degrees) for degrees in [d_out, d_in, d]]
     for (new_d, degree) in zip(new_degrees, [k_out, k_in, k])
@@ -264,4 +258,17 @@ function evaluate_nodal_proposal(
     p_accept = min(exp(β*Δ)*hastings_correction, 1)
 
     M_r_row, M_r_col, M_s_row, M_s_col, Δ, p_accept
+end
+
+function update_partition(
+    M::Array{Int64, 2}, r::Int64, s::Int64,
+    M_r_col::Vector{Int64}, M_s_col::Vector{Int64},
+    M_r_row::Vector{Int64}, M_s_row::Vector{Int64}
+    )
+    M[:, r] = M_r_col
+    M[r, :] = M_r_row
+    M[:, s] = M_s_col
+    M[s, :] = M_s_row
+    info("Updated partition")
+    M
 end

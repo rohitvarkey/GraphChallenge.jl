@@ -118,6 +118,7 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
                     in_wts = [
                         floor(Int64, get_weight(g, n, current_node)) for n in in_n
                     ]
+                    info("Performing nodal move on $current_node")
                     blocks_out_count_map = countmap(
                         partition[out_n], Distributions.weights(out_wts)
                     )
@@ -144,6 +145,12 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
                         total_num_nodal_moves += 1
                         num_nodal_moves += 1
                         nodal_itr_delta_entropy[nodal_itr] += Δ
+                        M = update_partition(
+                            M, current_block, proposal,
+                            M_r_col, M_s_col, M_r_row, M_s_row
+                        )
+                        d_out, d_in, d = compute_block_degrees(M, num_blocks)
+                        partition[current_node] = proposal
                     end
                 end
             end
