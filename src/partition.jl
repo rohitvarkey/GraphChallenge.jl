@@ -1,9 +1,38 @@
-
+function carry_out_best_merges(
+    delta_entropy_for_each_block::Vector{Float64},
+    best_merge_for_each_block::Vector{Int64},
+    b::Vector{Int64}, num_blocks::Int64, num_blocks_to_merge::Int64
+    )
+    @show num_blocks_to_merge
+    best_blocks = sortperm(delta_entropy_for_each_block)
+    blocks_merged = 0
+    counter = 1
+    block_map = collect(1:num_blocks)
+    while blocks_merged < num_blocks_to_merge
+        mergeFrom = best_blocks[counter]
+        mergeTo = block_map[best_merge_for_each_block[mergeFrom]]
+        counter += 1
+        if mergeTo != mergeFrom
+            println("Merging $mergeFrom to $mergeTo")
+            block_map[findin(block_map, mergeFrom)] = mergeTo
+            b[findin(b, mergeFrom)] = mergeTo
+            blocks_merged += 1
+        end
+    end
+    remaining_blocks = unique(b)
+    @show length(remaining_blocks)
+    mapping = -ones(Int64, num_blocks)
+    mapping[remaining_blocks] = 1:length(remaining_blocks)
+    b = mapping[b]
+    @show b
+    return b
+end
 
 function agglomerative_updates(
     M, num_blocks::Int64, b::Vector{Int64}, d::Vector{Int64},
     d_in::Vector{Int64}, d_out::Vector{Int64};
-    num_agg_proposals_per_block::Int64 = 10
+    num_agg_proposals_per_block::Int64 = 10,
+    num_block_reduction_rate::Float64 = 0.5
     )
     best_merge_for_each_block = fill(-1, num_blocks)
     delta_entropy_for_each_block = fill(Inf, num_blocks)
@@ -29,8 +58,11 @@ function agglomerative_updates(
             end
         end
     end
-    @show best_merge_for_each_block
-    @show delta_entropy_for_each_block
+    # Get the new block assignments
+    b = carry_out_best_merges(
+        delta_entropy_for_each_block, best_merge_for_each_block, b,
+        num_blocks, floor(Int64, num_blocks * num_block_reduction_rate)
+    )
 end
 
 
@@ -60,7 +92,6 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
     )
 
     optimal_num_blocks_found = false
-    agglomerative_updates(M, num_blocks, partition, d, d_in, d_out,
+    partition = agglomerative_updates(M, num_blocks, partition, d, d_in, d_out,
     num_agg_proposals_per_block=num_agg_proposals_per_block)
-
 end
