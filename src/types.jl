@@ -11,4 +11,4 @@ type Partition{T}
 end
 
 copy(p::Partition) = Partition(p.M, p.S, p.b, p.d, p.d_out, p.d_in, p.B)
-show(io::IO, p::Partition) = print(io, "(", p.S, "," , p.B, ")")
+show(io::IO, p::Partition) = print(io, "Partition(", p.S, "," , p.B, ")")

@@ -61,10 +61,19 @@ function agglomerative_updates(
     )
 end
 
+function partition(T::Type, num_nodes::Int64)
+    g = SimpleWeightedDiGraph(num_nodes)
+    load_graph!(g, num_nodes)
+    partition(T, g, num_nodes)
+end
 
 function partition(T::Type, sampling_type::String, num_nodes::Int64)
     g = SimpleWeightedDiGraph(num_nodes)
     load_graph!(g, sampling_type, num_nodes, 1)
+    partition(T, g, num_nodes)
+end
+
+function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     num_blocks = nv(g)
     partition = collect(1:num_blocks)
 
@@ -94,7 +103,7 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
             zeros(Int64, nv(g)),
             zeros(Int64, nv(g)),
             zeros(Int64, nv(g)),
-            -1
+            typemax(Int64)
         )
     end
     M = initialize_edge_counts(T, g, num_blocks, partition)
@@ -108,6 +117,7 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
             num_agg_proposals_per_block = num_agg_proposals_per_block,
             num_block_reduction_rate = num_block_reduction_rate
         )
+        @show partition, maximum(partition)
         M = initialize_edge_counts(T, g, num_blocks, partition)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
 
@@ -192,6 +202,7 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
            end
         end
 
+        @show partition, maximum(partition)
         # compute the global entropy for MCMC convergence criterion
         overall_entropy = compute_overall_entropy(
             M, d_out, d_in, num_blocks, nv(g), ne(g)

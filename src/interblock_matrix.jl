@@ -296,9 +296,7 @@ function prepare_for_partition_on_next_num_blocks(
     )
     @show best_partitions, current_partition
     optimal_B_found = false
-    if (best_partitions[2].B == -1)
-        best_partitions[2] = current_partition
-    elseif current_partition.S <= best_partitions[2].S
+    if current_partition.S <= best_partitions[2].S
         if best_partitions[2].B > current_partition.B
             best_partitions[1] = best_partitions[2]
         else
