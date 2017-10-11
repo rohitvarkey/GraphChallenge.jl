@@ -107,43 +107,75 @@ function compute_new_matrix_agglomerative(
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
 
-function propose_new_partition(
+function propose_new_partition_agg(
     M::Array{Int64, 2}, r::Int64, b::Vector{Int64}, B::Int64,
-    d::Vector{Int64}, neighbors::Vector{Int64}, agglomerative_move::Bool
+    d::Vector{Int64}, neighbors::Vector{Int64}
     )
 
     # Pick a neighbor randomly
     if length(neighbors) == 0
-        return r
+        candidates = Set(1:B)
+        # Force to be different than r.
+        pop!(candidates, r)
+        s = sample(collect(candidates))
+        return s
     end
-    u = sample(neighbors, Distributions.weights(d[neighbors]./sum(d)))
+    rand_neighbor = sample(neighbors, Distributions.weights(d[neighbors]./sum(d)))
+    u = b[rand_neighbor]
     if rand() < B / (d[u] + B)
         candidates = Set(1:B)
-        if agglomerative_move
-            # Force to be different than r.
-            pop!(candidates, r)
-        end
+        pop!(candidates, r)
         s = sample(collect(candidates))
     else
         multinomial_prob = (M[:, u] .+ M[u, :]) ./ d[u]
-        if agglomerative_move
-            # Force to be different than r.
-            multinomial_prob[r] = 0
-            if sum(multinomial_prob) == 0
-                candidates = Set(1:B)
-                pop!(candidates, r)
-                s = sample(collect(candidates))
-                return s
-            else
-                # Normalize back
-                multinomial_prob /= sum(multinomial_prob)
-            end
+        multinomial_prob[r] = 0
+        if sum(multinomial_prob) == 0
+            candidates = Set(1:B)
+            pop!(candidates, r)
+            s = sample(collect(candidates))
+            return s
+        else
+            # Normalize back
+            multinomial_prob /= sum(multinomial_prob)
         end
         s = findn(rand(Multinomial(1, multinomial_prob)))[1]
     end
     return s
 end
 
+function propose_new_partition_nodal(
+    M::Array{Int64, 2}, r::Int64, b::Vector{Int64},
+    B::Int64, d::Vector{Int64}, neighbors::Vector{Int64}, wts::Vector{Int64},
+    )
+
+    # Pick a neighbor randomly
+    if length(neighbors) == 0
+        candidates = Set(1:B)
+        s = sample(collect(candidates))
+        return s
+    end
+    rand_neighbor = sample(neighbors, Distributions.weights(wts./sum(wts)))
+    u = b[rand_neighbor]
+    if rand() < B / (d[u] + B)
+        candidates = Set(1:B)
+        pop!(candidates, r)
+        s = sample(collect(candidates))
+    else
+        multinomial_prob = (M[:, u] .+ M[u, :]) ./ d[u]
+        multinomial_prob[r] = 0
+        if sum(multinomial_prob) == 0
+            candidates = Set(1:B)
+            pop!(candidates, r)
+            s = sample(collect(candidates))
+            return s
+        else
+            # Normalize back
+            multinomial_prob /= sum(multinomial_prob)
+        end
+        s = findn(rand(Multinomial(1, multinomial_prob)))[1]
+    end
+    return s
+end
 function compute_delta_entropy(
     M::Array{Int64, 2}, r::Int64, s::Int64,
     M_r_col::Vector{Int64}, M_s_col::Vector{Int64}, M_r_row::Vector{Int64},

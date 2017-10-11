@@ -40,9 +40,9 @@ function agglomerative_updates(
             M, current_block
         )
         for proposal_idx = 1:num_agg_proposals_per_block
-            proposal = propose_new_partition(
+            proposal = propose_new_partition_agg(
                 M, current_block, b, num_blocks,
-                d, neighbors, true
+                d, neighbors
             )
             ∇ = evaluate_proposal_agg(
                 M, current_block, proposal, num_blocks, d, d_in, d_out,
@@ -55,10 +55,13 @@ function agglomerative_updates(
         end
     end
     # Get the new block assignments
+    new_num_blocks = floor(Int64, num_blocks * num_block_reduction_rate)
     b = carry_out_best_merges(
         delta_entropy_for_each_block, best_merge_for_each_block, b,
-        num_blocks, floor(Int64, num_blocks * num_block_reduction_rate)
+        num_blocks, new_num_blocks
     )
+
+    b, new_num_blocks
 end
 
 function partition(T::Type, num_nodes::Int64)
@@ -111,13 +114,13 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     optimal_num_blocks_found = false
 
     while optimal_num_blocks_found == false
-        info("Merging down from $num_blocks to $(floor(Int64, num_blocks * num_block_reduction_rate))")
-        partition = agglomerative_updates(
+        println("Merging down from $num_blocks to $(floor(Int64, num_blocks * num_block_reduction_rate))")
+        partition, num_blocks = agglomerative_updates(
             M, num_blocks, partition, d, d_in, d_out,
             num_agg_proposals_per_block = num_agg_proposals_per_block,
             num_block_reduction_rate = num_block_reduction_rate
         )
-        @show partition, maximum(partition)
+        @show partition, maximum(partition), num_blocks
         M = initialize_edge_counts(T, g, num_blocks, partition)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
 
@@ -134,19 +137,19 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
 
             for current_node in vertices(g)
                 current_block  = partition[current_node]
-                proposal = propose_new_partition(
+                out_n = out_neighbors(g, current_node)
+                in_n = in_neighbors(g, current_node)
+                out_wts = [
+                    floor(Int64, get_weight(g, current_node, n)) for n in out_n
+                ]
+                in_wts = [
+                    floor(Int64, get_weight(g, n, current_node)) for n in in_n
+                ]
+                proposal = propose_new_partition_nodal(
                     M, current_block, partition, num_blocks,
-                    d, all_neighbors(g, current_node), false
+                    d, vcat(out_n, in_n), vcat(out_wts, in_wts)
                 )
                 if (proposal != current_block)
-                    out_n = out_neighbors(g, current_node)
-                    in_n = in_neighbors(g, current_node)
-                    out_wts = [
-                        floor(Int64, get_weight(g, current_node, n)) for n in out_n
-                    ]
-                    in_wts = [
-                        floor(Int64, get_weight(g, n, current_node)) for n in in_n
-                    ]
                     #info("Performing nodal move on $current_node")
                     blocks_out_count_map = countmap(
                         partition[out_n], Distributions.weights(out_wts)
