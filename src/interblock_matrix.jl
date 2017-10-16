@@ -333,7 +333,6 @@ function prepare_for_partition_on_next_num_blocks(
     best_partitions::Vector{Partition{Array{Int64, 2}}},
     B_rate::Float64
     )
-    @show best_partitions, current_partition
     optimal_B_found = false
     if current_partition.S <= best_partitions[2].S
         if best_partitions[2].B > current_partition.B

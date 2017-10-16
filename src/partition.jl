@@ -52,7 +52,7 @@ function agglomerative_updates(
         end
     end
     # Get the new block assignments
-    @show new_num_blocks = num_blocks - num_blocks_to_merge
+    new_num_blocks = num_blocks - num_blocks_to_merge
     b = carry_out_best_merges(
         delta_entropy_for_each_block, best_merge_for_each_block, b,
         num_blocks, num_blocks_to_merge
@@ -206,12 +206,13 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
             M, d_out, d_in, num_blocks, nv(g), ne(g)
         )
         println("$total_num_nodal_moves nodal moves performed with entropy of $overall_entropy")
+        println("")
         new_partition, best_partitions, optimal_num_blocks_found, num_blocks_to_merge =
             prepare_for_partition_on_next_num_blocks(
                 Partition(M, overall_entropy, partition, d, d_out, d_in, num_blocks),
                 best_partitions, num_block_reduction_rate
             )
-        @show best_partitions
+        #@show best_partitions
         M = new_partition.M
         overall_entropy = new_partition.S
         partition = new_partition.b
@@ -221,5 +222,11 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
         num_blocks = new_partition.B
         old_overall_entropy = [x.S for x in best_partitions]
         #optimal_num_blocks_found = true #FIXME: Remove once all done
+        if optimal_num_blocks_found == true
+            println("Final partition: ", new_partition)
+        end
     end
+
+    println("Best partition :", partition, "Num blocks : ", num_blocks)
+    partition
 end
