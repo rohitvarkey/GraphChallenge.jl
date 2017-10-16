@@ -25,8 +25,8 @@ function carry_out_best_merges(
 end
 
 function agglomerative_updates(
-    M, num_blocks::Int64, b::Vector{Int64}, d::Vector{Int64},
-    d_in::Vector{Int64}, d_out::Vector{Int64};
+    M, num_blocks::Int64, num_blocks_to_merge::Int64, b::Vector{Int64},
+    d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64};
     num_agg_proposals_per_block::Int64 = 10,
     num_block_reduction_rate::Float64 = 0.5
     )
@@ -52,10 +52,10 @@ function agglomerative_updates(
         end
     end
     # Get the new block assignments
-    new_num_blocks = ceil(Int64, num_blocks * num_block_reduction_rate)
+    @show new_num_blocks = num_blocks - num_blocks_to_merge
     b = carry_out_best_merges(
         delta_entropy_for_each_block, best_merge_for_each_block, b,
-        num_blocks, new_num_blocks
+        num_blocks, num_blocks_to_merge
     )
 
     b, new_num_blocks
@@ -109,13 +109,13 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     M = initialize_edge_counts(T, g, num_blocks, partition)
     d_out, d_in, d = compute_block_degrees(M, num_blocks)
     optimal_num_blocks_found = false
+    num_blocks_to_merge = ceil(Int64, num_blocks * num_block_reduction_rate)
 
     while optimal_num_blocks_found == false
-        println("Merging down from $num_blocks to $(ceil(Int64, num_blocks * num_block_reduction_rate))")
+        println("Merging down from $num_blocks to $(num_blocks - num_blocks_to_merge)")
         partition, num_blocks = agglomerative_updates(
-            M, num_blocks, partition, d, d_in, d_out,
+            M, num_blocks, num_blocks_to_merge, partition, d, d_in, d_out,
             num_agg_proposals_per_block = num_agg_proposals_per_block,
-            num_block_reduction_rate = num_block_reduction_rate
         )
         M = initialize_edge_counts(T, g, num_blocks, partition)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
@@ -218,6 +218,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
         d = new_partition.d
         d_out = new_partition.d_out
         d_in = new_partition.d_in
+        num_blocks = new_partition.B
         old_overall_entropy = [x.S for x in best_partitions]
         #optimal_num_blocks_found = true #FIXME: Remove once all done
     end

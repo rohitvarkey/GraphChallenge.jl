@@ -358,6 +358,7 @@ function prepare_for_partition_on_next_num_blocks(
         if best_partitions[1].B - best_partitions[3].B == 2
             optimal_B_found = true
             partition = copy(best_partitions[2])
+            B_to_merge = 0
         else
             if (best_partitions[1].B - best_partitions[2].B) >=
                 (best_partitions[2].B - best_partitions[3].B)  # the higher segment in the bracket is bigger
