@@ -222,7 +222,7 @@ function compute_delta_entropy(
             delta += M[t1, t2] * log(M[t1, t2] / d_in[t1] / d_out[t2])
         end
     end
-    println("Delta: $delta")
+    #println("Delta: $delta")
     delta
 end
 
@@ -263,16 +263,16 @@ function evaluate_proposal_agg(
     d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
     k::Int64, k_in::Int64, k_out::Int64
     )
-    @show M_r_row, M_r_col, M_s_row, M_s_col =
+    M_r_row, M_r_col, M_s_row, M_s_col =
         compute_new_matrix_agglomerative(M, r, s, num_blocks)
     new_degrees = [copy(degrees) for degrees in [d_out, d_in, d]]
     for (new_d, degree) in zip(new_degrees, [k_out, k_in, k])
         new_d[r] -= degree
         new_d[s] += degree
     end
-    @show d_in, new_degrees[2], k_in
-    @show d_out, new_degrees[1], k_out
-    @show d, new_degrees[3], k
+    #@show d_in, new_degrees[2], k_in
+    #@show d_out, new_degrees[1], k_out
+    #@show d, new_degrees[3], k
     compute_delta_entropy(
         M, r, s, M_r_col, M_s_col, M_r_row, M_s_row, d_out, d_in,
         new_degrees[1], new_degrees[2]
@@ -310,7 +310,7 @@ function evaluate_nodal_proposal(
 
     p_accept = min(exp(-β * Δ) * hastings_correction, 1)
 
-    println("p_accept: $(p_accept), Δ: $Δ, β: $β, H: $(hastings_correction), exp: $(exp(-β*Δ)*hastings_correction)")
+    #println("p_accept: $(p_accept), Δ: $Δ, β: $β, H: $(hastings_correction), exp: $(exp(-β*Δ)*hastings_correction)")
 
     M_r_row, M_r_col, M_s_row, M_s_col, Δ, p_accept
 end
@@ -355,21 +355,21 @@ function prepare_for_partition_on_next_num_blocks(
         end
         partition = copy(best_partitions[2])
     else
-        if best_partitions[1].B - old_partition[3].B == 2
+        if best_partitions[1].B - best_partitions[3].B == 2
             optimal_B_found = true
             partition = copy(best_partitions[2])
         else
-            if (best_partitions.B[1]-best_partitions.B[2]) >=
-                (best_partitions.B[2]-best_partitions.B[3])  # the higher segment in the bracket is bigger
+            if (best_partitions[1].B - best_partitions[2].B) >=
+                (best_partitions[2].B - best_partitions[3].B)  # the higher segment in the bracket is bigger
                 index = 1
             else  # the lower segment in the bracket is bigger
                 index = 2
-                next_B_to_try = best_partitions[index + 1].B +
-                    round(Int64,
-                    (best_partitions[index].B - best_partitions[index + 1].B) * 0.618)
-                B_to_merge = best_partitions[index].B - next_B_to_try
-                partition = copy(best_partitions[index])
             end
+            next_B_to_try = best_partitions[index + 1].B +
+                round(Int64,
+                (best_partitions[index].B - best_partitions[index + 1].B) * 0.618)
+            B_to_merge = best_partitions[index].B - next_B_to_try
+            partition = copy(best_partitions[index])
         end
     end
     return partition, best_partitions, optimal_B_found, B_to_merge
