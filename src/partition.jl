@@ -3,7 +3,6 @@ function carry_out_best_merges(
     best_merge_for_each_block::Vector{Int64},
     b::Vector{Int64}, num_blocks::Int64, num_blocks_to_merge::Int64
     )
-    @show num_blocks_to_merge
     best_blocks = sortperm(delta_entropy_for_each_block)
     blocks_merged = 0
     counter = 1
@@ -19,11 +18,9 @@ function carry_out_best_merges(
         end
     end
     remaining_blocks = unique(b)
-    @show length(remaining_blocks)
     mapping = -ones(Int64, num_blocks)
     mapping[remaining_blocks] = 1:length(remaining_blocks)
     b = mapping[b]
-    @show b
     return b
 end
 
@@ -44,18 +41,18 @@ function agglomerative_updates(
                 M, current_block, b, num_blocks,
                 d, neighbors
             )
-            ∇ = evaluate_proposal_agg(
+            Δ = evaluate_proposal_agg(
                 M, current_block, proposal, num_blocks, d, d_in, d_out,
                 k, k_in, k_out
             )
-            if ∇ < delta_entropy_for_each_block[current_block]
+            if Δ < delta_entropy_for_each_block[current_block]
                 best_merge_for_each_block[current_block] = proposal
-                delta_entropy_for_each_block[current_block] = ∇
+                delta_entropy_for_each_block[current_block] = Δ
             end
         end
     end
     # Get the new block assignments
-    new_num_blocks = floor(Int64, num_blocks * num_block_reduction_rate)
+    new_num_blocks = ceil(Int64, num_blocks * num_block_reduction_rate)
     b = carry_out_best_merges(
         delta_entropy_for_each_block, best_merge_for_each_block, b,
         num_blocks, new_num_blocks
@@ -86,7 +83,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
 
     # nodal partition updates parameters
     # maximum number of iterations
-    max_num_nodal_itr = 10
+    max_num_nodal_itr = 100
     # stop iterating when the change in entropy falls below this fraction of the overall entropy
     # lowering this threshold results in more nodal update iterations and likely better performance, but longer runtime
     delta_entropy_threshold1 = 5e-4
@@ -114,18 +111,17 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     optimal_num_blocks_found = false
 
     while optimal_num_blocks_found == false
-        println("Merging down from $num_blocks to $(floor(Int64, num_blocks * num_block_reduction_rate))")
+        println("Merging down from $num_blocks to $(ceil(Int64, num_blocks * num_block_reduction_rate))")
         partition, num_blocks = agglomerative_updates(
             M, num_blocks, partition, d, d_in, d_out,
             num_agg_proposals_per_block = num_agg_proposals_per_block,
             num_block_reduction_rate = num_block_reduction_rate
         )
-        @show partition, maximum(partition), num_blocks
         M = initialize_edge_counts(T, g, num_blocks, partition)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
 
         # compute the global entropy for MCMC convergence criterion
-        @show overall_entropy = compute_overall_entropy(
+        overall_entropy = compute_overall_entropy(
             M, d_out, d_in, num_blocks, nv(g), ne(g)
         )
 
@@ -172,8 +168,8 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                         self_edge_weight,
                         blocks_out_count_map, blocks_in_count_map
                     )
-
-                    if rand() <= p_accept
+                    random_value = rand(Uniform())
+                    if random_value <= p_accept
                         total_num_nodal_moves += 1
                         num_nodal_moves += 1
                         nodal_itr_delta_entropy[nodal_itr] += Δ
@@ -187,25 +183,24 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                 end
             end
             # exit MCMC if the recent change in entropy falls below a small fraction of the overall entropy
-           if (nodal_itr >= delta_entropy_moving_avg_window)
+            println("Itr: $nodal_itr, nodal moves: $(num_nodal_moves), Δ: $(nodal_itr_delta_entropy[nodal_itr]), fraction: $(-nodal_itr_delta_entropy[nodal_itr]/overall_entropy)")
+            if (nodal_itr >= delta_entropy_moving_avg_window)
                window = (nodal_itr-delta_entropy_moving_avg_window+1):nodal_itr
+               println("$(-mean(nodal_itr_delta_entropy[window])), $(delta_entropy_threshold1 * overall_entropy), $(overall_entropy)")
                if all(isfinite.(old_overall_entropy)) == false # golden ratio bracket not yet established
                    if -mean(nodal_itr_delta_entropy[window]) <
                        delta_entropy_threshold1 * overall_entropy
-                       println("Stopping at $nodal_itr iterations with $(nodal_itr_delta_entropy[nodal_itr]/overall_entropy)")
                        break
                    end
                else # golden ratio bracket is established. Fine-tuning partition.
-                   if mean(itr_delta_entropy[window]) <
+                   if -mean(nodal_itr_delta_entropy[window]) <
                        delta_entropy_threshold2 * overall_entropy
-                       println("Stopping at $nodal_itr iterations with $(nodal_itr_delta_entropy[nodal_itr]/overall_entropy)")
                        break
                    end
                end
            end
         end
 
-        @show partition, maximum(partition)
         # compute the global entropy for MCMC convergence criterion
         overall_entropy = compute_overall_entropy(
             M, d_out, d_in, num_blocks, nv(g), ne(g)
@@ -216,7 +211,6 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                 Partition(M, overall_entropy, partition, d, d_out, d_in, num_blocks),
                 best_partitions, num_block_reduction_rate
             )
-        @show new_partition
         @show best_partitions
         M = new_partition.M
         overall_entropy = new_partition.S
@@ -225,7 +219,6 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
         d_out = new_partition.d_out
         d_in = new_partition.d_in
         old_overall_entropy = [x.S for x in best_partitions]
-        @show maximum(partition)
         #optimal_num_blocks_found = true #FIXME: Remove once all done
     end
 end

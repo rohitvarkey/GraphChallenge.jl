@@ -17,8 +17,8 @@ function compute_block_neighbors_and_degrees(M::Array{Int64, 2}, block::Int64)
     out_neighbors = findn(M[:, block])
     in_neighbors = findn(M[block, :])
     neighbors = collect(Set(out_neighbors) ∪ Set(in_neighbors))
-    k_out = sum(M[:, out_neighbors])
-    k_in = sum(M[in_neighbors, :])
+    k_in = sum(M[block, in_neighbors])
+    k_out = sum(M[out_neighbors, block])
     k = k_out + k_in
     neighbors, k_out, k_in, k
 end
@@ -95,13 +95,13 @@ function compute_new_matrix_agglomerative(
     M_s_col = copy(M[:, s])
 
     #TODO: Optimize this
-    M_s_row += M_r_row
+    M_s_row += M[r, :]
     M_s_row[r] = 0
-    M_s_row[s] += M[r, r] + M[r, s]
+    M_s_row[s] += M[r, r] + M[s, r]
 
-    M_s_col += M_r_col
+    M_s_col += M[:, r]
     M_s_col[r] = 0
-    M_s_col[s] += M[r, r] + M[s, r]
+    M_s_col[s] += M[r, r] + M[r, s]
 
     #TODO : Check self edge case
     return M_r_row, M_r_col, M_s_row, M_s_col
@@ -176,6 +176,7 @@ function propose_new_partition_nodal(
     end
     return s
 end
+
 function compute_delta_entropy(
     M::Array{Int64, 2}, r::Int64, s::Int64,
     M_r_col::Vector{Int64}, M_s_col::Vector{Int64}, M_r_row::Vector{Int64},
@@ -221,6 +222,7 @@ function compute_delta_entropy(
             delta += M[t1, t2] * log(M[t1, t2] / d_in[t1] / d_out[t2])
         end
     end
+    println("Delta: $delta")
     delta
 end
 
@@ -261,15 +263,18 @@ function evaluate_proposal_agg(
     d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
     k::Int64, k_in::Int64, k_out::Int64
     )
-    M_r_row, M_r_col, M_s_row, M_s_col =
+    @show M_r_row, M_r_col, M_s_row, M_s_col =
         compute_new_matrix_agglomerative(M, r, s, num_blocks)
     new_degrees = [copy(degrees) for degrees in [d_out, d_in, d]]
     for (new_d, degree) in zip(new_degrees, [k_out, k_in, k])
         new_d[r] -= degree
         new_d[s] += degree
     end
+    @show d_in, new_degrees[2], k_in
+    @show d_out, new_degrees[1], k_out
+    @show d, new_degrees[3], k
     compute_delta_entropy(
-        M, r, s, M_r_col, M_s_col, M_r_row, M_s_col, d_out, d_in,
+        M, r, s, M_r_col, M_s_col, M_r_row, M_s_row, d_out, d_in,
         new_degrees[1], new_degrees[2]
     )
 end
@@ -299,11 +304,13 @@ function evaluate_nodal_proposal(
     )
 
     Δ = compute_delta_entropy(
-            M, r, s, M_r_col, M_s_col, M_r_row, M_s_col, d_out, d_in,
+            M, r, s, M_r_col, M_s_col, M_r_row, M_s_row, d_out, d_in,
             new_degrees[1], new_degrees[2]
         )
 
-    p_accept = min(exp(β*Δ)*hastings_correction, 1)
+    p_accept = min(exp(-β * Δ) * hastings_correction, 1)
+
+    println("p_accept: $(p_accept), Δ: $Δ, β: $β, H: $(hastings_correction), exp: $(exp(-β*Δ)*hastings_correction)")
 
     M_r_row, M_r_col, M_s_row, M_s_col, Δ, p_accept
 end
