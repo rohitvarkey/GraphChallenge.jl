@@ -15,8 +15,6 @@ function test_load_streaming_graph(num_nodes::Int64)
     end
 end
 
-test_load_streaming_graph(1000)
-
 function test_load_graph(num_nodes::Int64)
     g = SimpleWeightedDiGraph(num_nodes)
     load_graph!(g, num_nodes)
@@ -27,4 +25,8 @@ function test_load_graph(num_nodes::Int64)
     @test ne(g) == edges
 end
 
-test_load_graph(1000)
+
+@testset "Graph Loading Tests" begin
+    test_load_graph(1000)
+    test_load_streaming_graph(1000)
+end
