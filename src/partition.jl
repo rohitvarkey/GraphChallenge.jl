@@ -62,8 +62,7 @@ function agglomerative_updates(
 end
 
 function partition(T::Type, num_nodes::Int64)
-    g = SimpleWeightedDiGraph(num_nodes)
-    load_graph!(g, num_nodes)
+    g = load_graph!(g, num_nodes)
     partition(T, g, num_nodes)
 end
 

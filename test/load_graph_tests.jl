@@ -16,8 +16,7 @@ function test_load_streaming_graph(num_nodes::Int64)
 end
 
 function test_load_graph(num_nodes::Int64)
-    g = SimpleWeightedDiGraph(num_nodes)
-    load_graph!(g, num_nodes)
+    g = load_graph(num_nodes)
     @test nv(g) == num_nodes
     edges = countlines(joinpath(
                 GraphChallenge.INPUT_PATH, "static",

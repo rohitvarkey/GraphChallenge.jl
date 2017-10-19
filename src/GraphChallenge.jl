@@ -5,7 +5,8 @@ using LightGraphs
 using Distributions
 using StatsBase
 
-export load_graph!, initialize_edge_counts, compute_block_degrees, partition
+export load_graph!, load_graph, initialize_edge_counts, compute_block_degrees,
+       partition
 
 # package code goes here
 const INPUT_PATH = joinpath(dirname(dirname(@__FILE__)), "data")

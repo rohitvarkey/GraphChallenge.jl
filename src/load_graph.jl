@@ -27,7 +27,8 @@ function load_graph!(
 end
 
 
-function load_graph!(g::SimpleWeightedDiGraph, num_vertices::Int64)
+function load_graph(num_vertices::Int64)
+    g = SimpleWeightedDiGraph(num_vertices)
     filename = joinpath(
             INPUT_PATH, "static",
             "simulated_blockmodel_graph_$(num_vertices)_nodes.tsv")
@@ -38,4 +39,5 @@ function load_graph!(g::SimpleWeightedDiGraph, num_vertices::Int64)
             throw("Error adding edges.")
         end
     end
+    g
 end
