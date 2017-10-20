@@ -17,7 +17,7 @@ function carry_out_best_merges(
             blocks_merged += 1
         end
     end
-    remaining_blocks = unique(b)
+    remaining_blocks = sort(unique(b))
     mapping = -ones(Int64, num_blocks)
     mapping[remaining_blocks] = 1:length(remaining_blocks)
     b = mapping[b]

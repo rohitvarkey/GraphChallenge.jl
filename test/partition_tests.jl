@@ -2,7 +2,8 @@ import GraphChallenge: compute_block_neighbors_and_degrees,
                        propose_new_partition_agg,
                        evaluate_proposal_agg,
                        compute_new_matrix_agglomerative,
-                       compute_delta_entropy
+                       compute_delta_entropy,
+                       carry_out_best_merges
 
 function test_compute_block_degrees(M, g::SimpleWeightedDiGraph, num_nodes::Int64)
     d_out, d_in, d = compute_block_degrees(M, num_nodes)
@@ -24,6 +25,23 @@ end
         test_initialize_counts(M, g)
         test_compute_block_degrees(M, g, num_nodes)
     end
+end
+
+
+function test_carry_out_best_merges()
+    delta_entropy_for_each_block = [5.2, 10.1, 2.0, 22.2, 19.1, 1.6]
+    b = [6, 1, 5, 2, 1, 6, 3, 4, 5, 2]
+    best_merge_for_each_block = [5, 1, 6, 5, 3, 2]
+    num_blocks = 6
+    num_blocks_to_merge = 3
+    # 6 is merged with 2, 3 is merged with 6 (2), 1 is merged with 5
+    # 2, 4, 5 -> 1, 2, 3
+    # 1, 2, 3, 4, 5, 6 -> 3, 1, 1, 2, 3, 1
+    new_b = carry_out_best_merges(
+        delta_entropy_for_each_block, best_merge_for_each_block,
+        b, num_blocks, num_blocks_to_merge
+    )
+    @test new_b == [1, 3, 3, 1, 3, 1, 1, 2, 3, 1]
 end
 
 @testset "Agglomerative step" begin
@@ -82,6 +100,7 @@ end
             @test round(Δ, 8) == round(del, 8)
         end
     end
+    test_carry_out_best_merges()
 end
 
 function test_matrix_update_agglomerative()
