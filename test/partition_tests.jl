@@ -1,7 +1,8 @@
 import GraphChallenge: compute_block_neighbors_and_degrees,
                        propose_new_partition_agg,
                        evaluate_proposal_agg,
-                       compute_new_matrix_agglomerative
+                       compute_new_matrix_agglomerative,
+                       compute_delta_entropy
 
 function test_compute_block_degrees(M, g::SimpleWeightedDiGraph, num_nodes::Int64)
     d_out, d_in, d = compute_block_degrees(M, num_nodes)
@@ -58,6 +59,28 @@ end
             k, k_in, k_out
         )
         @test round(Δ, 8) == round(12.922923932215921, 8)
+
+        dels = [
+            11.526476498348591,
+            18.399940230473767,
+            10.721552778631198,
+            12.676102415605499,
+            14.51057342884269,
+            17.370500395409749,
+            11.75383351662429,
+            11.325121362841692,
+            9.3352584175113105,
+            10.140182137228694,
+            12.375461451499252
+        ]
+
+        for (del, n) in zip(dels, sort(collect(all_neighbors(g, current_block))))
+            Δ = evaluate_proposal_agg(
+                M, current_block, n, num_blocks, d, d_in, d_out,
+                k, k_in, k_out
+            )
+            @test round(Δ, 8) == round(del, 8)
+        end
     end
 end
 
