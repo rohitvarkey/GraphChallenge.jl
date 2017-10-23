@@ -352,11 +352,11 @@ function prepare_for_partition_on_next_num_blocks(
         if B_to_merge == 0
             optimal_B_found = true
         end
-        partition = copy(best_partitions[2])
+        partition = deepcopy(best_partitions[2])
     else
         if best_partitions[1].B - best_partitions[3].B == 2
             optimal_B_found = true
-            partition = copy(best_partitions[2])
+            partition = deepcopy(best_partitions[2])
             B_to_merge = 0
         else
             if (best_partitions[1].B - best_partitions[2].B) >=
@@ -369,7 +369,7 @@ function prepare_for_partition_on_next_num_blocks(
                 round(Int64,
                 (best_partitions[index].B - best_partitions[index + 1].B) * 0.618)
             B_to_merge = best_partitions[index].B - next_B_to_try
-            partition = copy(best_partitions[index])
+            partition = deepcopy(best_partitions[index])
         end
     end
     return partition, best_partitions, optimal_B_found, B_to_merge
