@@ -3,10 +3,11 @@ function carry_out_best_merges(
     best_merge_for_each_block::Vector{Int64},
     b::Vector{Int64}, num_blocks::Int64, num_blocks_to_merge::Int64
     )
-    best_blocks = sortperm(delta_entropy_for_each_block)
+    @show best_blocks = sortperm(delta_entropy_for_each_block)
     blocks_merged = 0
     counter = 1
     block_map = collect(1:num_blocks)
+    @show num_blocks, num_blocks_to_merge
     while blocks_merged < num_blocks_to_merge
         mergeFrom = best_blocks[counter]
         mergeTo = block_map[best_merge_for_each_block[mergeFrom]]
@@ -17,7 +18,7 @@ function carry_out_best_merges(
             blocks_merged += 1
         end
     end
-    remaining_blocks = sort(unique(b))
+    @show remaining_blocks = sort(unique(b))
     mapping = -ones(Int64, num_blocks)
     mapping[remaining_blocks] = 1:length(remaining_blocks)
     b = mapping[b]
@@ -53,6 +54,10 @@ function agglomerative_updates(
     end
     # Get the new block assignments
     new_num_blocks = num_blocks - num_blocks_to_merge
+    println("Before merges")
+    println("partition: $b")
+    println("best_merge_for_each_block: $best_merge_for_each_block")
+    println("delta_entropy_for_each_block: $delta_entropy_for_each_block")
     b = carry_out_best_merges(
         delta_entropy_for_each_block, best_merge_for_each_block, b,
         num_blocks, num_blocks_to_merge
@@ -62,7 +67,7 @@ function agglomerative_updates(
 end
 
 function partition(T::Type, num_nodes::Int64)
-    g = load_graph!(g, num_nodes)
+    g = load_graph(num_nodes)
     partition(T, g, num_nodes)
 end
 
@@ -87,7 +92,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     # lowering this threshold results in more nodal update iterations and likely better performance, but longer runtime
     delta_entropy_threshold1 = 5e-4
     # threshold after the golden ratio bracket is established (typically lower to fine-tune to partition)
-    delta_entropy_threshold2 = 1e-4
+    delta_entropy_threshold2 = 1e-7
     # width of the moving average window for the delta entropy convergence criterion
     delta_entropy_moving_avg_window = 3
 
@@ -116,6 +121,8 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
             M, num_blocks, num_blocks_to_merge, partition, d, d_in, d_out,
             num_agg_proposals_per_block = num_agg_proposals_per_block,
         )
+        println("After agglomerative_updates")
+        println("$partition")
         M = initialize_edge_counts(T, g, num_blocks, partition)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
 
@@ -183,6 +190,8 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
             end
             # exit MCMC if the recent change in entropy falls below a small fraction of the overall entropy
             println("Itr: $nodal_itr, nodal moves: $(num_nodal_moves), Δ: $(nodal_itr_delta_entropy[nodal_itr]), fraction: $(-nodal_itr_delta_entropy[nodal_itr]/overall_entropy)")
+            println("After nodal updates")
+            println("$(sort(unique(partition)))")
             if (nodal_itr >= delta_entropy_moving_avg_window)
                window = (nodal_itr-delta_entropy_moving_avg_window+1):nodal_itr
                println("$(-mean(nodal_itr_delta_entropy[window])), $(delta_entropy_threshold1 * overall_entropy), $(overall_entropy)")
@@ -223,9 +232,11 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
         #optimal_num_blocks_found = true #FIXME: Remove once all done
         if optimal_num_blocks_found == true
             println("Final partition: ", new_partition)
+        else
+            println("Chosen partition: ", new_partition)
         end
     end
 
     println("Best partition :", partition, "Num blocks : ", num_blocks)
-    partition
+    g, partition
 end

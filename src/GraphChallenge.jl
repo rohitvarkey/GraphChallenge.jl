@@ -15,4 +15,5 @@ include("types.jl")
 include("load_graph.jl")
 include("interblock_matrix.jl")
 include("partition.jl")
+include("plot.jl")
 end # module
