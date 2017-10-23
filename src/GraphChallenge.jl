@@ -6,7 +6,7 @@ using Distributions
 using StatsBase
 
 export load_graph!, load_graph, initialize_edge_counts, compute_block_degrees,
-       partition
+       partition, evaluate_partition
 
 # package code goes here
 const INPUT_PATH = joinpath(dirname(dirname(@__FILE__)), "data")
@@ -16,4 +16,5 @@ include("load_graph.jl")
 include("interblock_matrix.jl")
 include("partition.jl")
 include("plot.jl")
+include("evaluate.jl")
 end # module
