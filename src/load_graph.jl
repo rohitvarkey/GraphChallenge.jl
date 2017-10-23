@@ -41,3 +41,10 @@ function load_graph(num_vertices::Int64)
     end
     g
 end
+
+function load_truth_partition(num_vertices::Int64)
+    filename = joinpath(
+            INPUT_PATH, "static",
+            "simulated_blockmodel_graph_$(num_vertices)_nodes_truePartition.tsv")
+    readdlm(filename, Int64)[:, 2]
+end

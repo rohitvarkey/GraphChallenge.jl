@@ -28,7 +28,7 @@ function evaluate_partition(true_blocks::Vector{Int64}, alg_blocks::Vector{Int64
     println("Rand Index: $rand_index")
     println("Adjusted Rand Index: $adj_rand_index")
     println("")
-    
+
     accuracy, pairwise_precision, pairwise_recall, adj_rand_index, rand_index, information_theory_metrics(confusion_matrix)
 end
 
