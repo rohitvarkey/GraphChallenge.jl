@@ -22,6 +22,7 @@ function compute_block_neighbors_and_degrees(M::Array{Int64, 2}, block::Int64)
     k = k_out + k_in
     neighbors, k_out, k_in, k
 end
+
 function compute_block_degrees(M::Array{Int64, 2}, B::Int64)
     # Sum across rows to get the outdegrees for each block
     d_out = reshape(sum(M, 1), B)
@@ -326,51 +327,4 @@ function update_partition(
     M[s, :] = M_s_row
     #info("Updated partition")
     M
-end
-
-function prepare_for_partition_on_next_num_blocks(
-    current_partition::Partition{Array{Int64, 2}},
-    best_partitions::Vector{Partition{Array{Int64, 2}}},
-    B_rate::Float64
-    )
-    optimal_B_found = false
-    if current_partition.S <= best_partitions[2].S
-        if best_partitions[2].B > current_partition.B
-            best_partitions[1] = best_partitions[2]
-        else
-            best_partitions[3] = best_partitions[2]
-        end
-        best_partitions[2] = current_partition
-    elseif best_partitions[2].B > current_partition.B
-        best_partitions[3] = current_partition
-    else
-        best_partitions[1] = current_partition
-    end
-
-    if (best_partitions[3].S == Inf)
-        B_to_merge = floor(Int64, current_partition.B * B_rate)
-        if B_to_merge == 0
-            optimal_B_found = true
-        end
-        partition = deepcopy(best_partitions[2])
-    else
-        if best_partitions[1].B - best_partitions[3].B == 2
-            optimal_B_found = true
-            partition = deepcopy(best_partitions[2])
-            B_to_merge = 0
-        else
-            if (best_partitions[1].B - best_partitions[2].B) >=
-                (best_partitions[2].B - best_partitions[3].B)  # the higher segment in the bracket is bigger
-                index = 1
-            else  # the lower segment in the bracket is bigger
-                index = 2
-            end
-            next_B_to_try = best_partitions[index + 1].B +
-                round(Int64,
-                (best_partitions[index].B - best_partitions[index + 1].B) * 0.618)
-            B_to_merge = best_partitions[index].B - next_B_to_try
-            partition = deepcopy(best_partitions[index])
-        end
-    end
-    return partition, best_partitions, optimal_B_found, B_to_merge
 end

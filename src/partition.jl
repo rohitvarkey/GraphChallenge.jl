@@ -61,6 +61,54 @@ function agglomerative_updates(
     b, new_num_blocks
 end
 
+function prepare_for_partition_on_next_num_blocks(
+    current_partition::Partition{Array{Int64, 2}},
+    best_partitions::Vector{Partition{Array{Int64, 2}}},
+    B_rate::Float64
+    )
+    optimal_B_found = false
+    if current_partition.S <= best_partitions[2].S
+        if best_partitions[2].B > current_partition.B
+            best_partitions[1] = best_partitions[2]
+        else
+            best_partitions[3] = best_partitions[2]
+        end
+        best_partitions[2] = current_partition
+    elseif best_partitions[2].B > current_partition.B
+        best_partitions[3] = current_partition
+    else
+        best_partitions[1] = current_partition
+    end
+
+    if (best_partitions[3].S == Inf)
+        B_to_merge = floor(Int64, current_partition.B * B_rate)
+        if B_to_merge == 0
+            optimal_B_found = true
+        end
+        partition = deepcopy(best_partitions[2])
+    else
+        if best_partitions[1].B - best_partitions[3].B == 2
+            optimal_B_found = true
+            partition = deepcopy(best_partitions[2])
+            B_to_merge = 0
+        else
+            if (best_partitions[1].B - best_partitions[2].B) >=
+                (best_partitions[2].B - best_partitions[3].B)  # the higher segment in the bracket is bigger
+                index = 1
+            else  # the lower segment in the bracket is bigger
+                index = 2
+            end
+            next_B_to_try = best_partitions[index + 1].B +
+                round(Int64,
+                (best_partitions[index].B - best_partitions[index + 1].B) * 0.618)
+            B_to_merge = best_partitions[index].B - next_B_to_try
+            partition = deepcopy(best_partitions[index])
+        end
+    end
+    return partition, best_partitions, optimal_B_found, B_to_merge
+end
+
+
 function partition(T::Type, num_nodes::Int64)
     g = load_graph(num_nodes)
     partition(T, g, num_nodes)
