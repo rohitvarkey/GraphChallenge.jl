@@ -124,6 +124,8 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     num_blocks = nv(g)
     partition = collect(1:num_blocks)
 
+    vertex_in_neighbors = in_neighbors(g)
+
     β = 3
     num_agg_proposals_per_block = 10 # number of proposals per block
     num_block_reduction_rate = 0.5 # fraction of blocks to reduce until the golden ratio bracket is established
@@ -181,7 +183,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
             for current_node in vertices(g)
                 current_block  = partition[current_node]
                 out_n = out_neighbors(g, current_node)
-                in_n = in_neighbors(g, current_node)
+                in_n = vertex_in_neighbors[current_node]
                 out_wts = [
                     floor(Int64, get_weight(g, current_node, n)) for n in out_n
                 ]
@@ -205,7 +207,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                         Int64, get_weight(g, current_node, current_node)
                     )
 
-                    k_in = indegree(g, current_node)
+                    k_in = length(in_n)
                     k_out = outdegree(g, current_node)
 
                     M_r_row, M_r_col, M_s_row, M_s_col, Δ, p_accept =
