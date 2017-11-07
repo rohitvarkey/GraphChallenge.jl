@@ -108,6 +108,75 @@ function prepare_for_partition_on_next_num_blocks(
     return partition, best_partitions, optimal_B_found, B_to_merge
 end
 
+function propose_new_partition_agg{T}(
+    M::T, r::Int64, b::Vector{Int64}, B::Int64,
+    d::Vector{Int64}, neighbors::Vector{Int64}
+    )
+
+    # Pick a neighbor randomly
+    if length(neighbors) == 0
+        candidates = Set(1:B)
+        # Force to be different than r.
+        pop!(candidates, r)
+        s = sample(collect(candidates))
+        return s
+    end
+    rand_neighbor = sample(neighbors, Distributions.weights(d[neighbors]./sum(d)))
+    u = b[rand_neighbor]
+    if rand() < B / (d[u] + B)
+        candidates = Set(1:B)
+        pop!(candidates, r)
+        s = sample(collect(candidates))
+    else
+        multinomial_prob = compute_multinomial_probs(M, d, u)
+        multinomial_prob[r] = 0
+        if sum(multinomial_prob) == 0
+            candidates = Set(1:B)
+            pop!(candidates, r)
+            s = sample(collect(candidates))
+            return s
+        else
+            # Normalize back
+            multinomial_prob /= sum(multinomial_prob)
+        end
+        s = findn(rand(Multinomial(1, multinomial_prob)))[1]
+    end
+    return s
+end
+
+function propose_new_partition_nodal{T}(
+    M::T, r::Int64, b::Vector{Int64},
+    B::Int64, d::Vector{Int64}, neighbors::Vector{Int64}, wts::Vector{Int64},
+    )
+
+    # Pick a neighbor randomly
+    if length(neighbors) == 0
+        candidates = Set(1:B)
+        s = sample(collect(candidates))
+        return s
+    end
+    rand_neighbor = sample(neighbors, Distributions.weights(wts./sum(wts)))
+    u = b[rand_neighbor]
+    if rand() < B / (d[u] + B)
+        candidates = Set(1:B)
+        pop!(candidates, r)
+        s = sample(collect(candidates))
+    else
+        multinomial_prob = compute_multinomial_probs(M, d, u)
+        multinomial_prob[r] = 0
+        if sum(multinomial_prob) == 0
+            candidates = Set(1:B)
+            pop!(candidates, r)
+            s = sample(collect(candidates))
+            return s
+        else
+            # Normalize back
+            multinomial_prob /= sum(multinomial_prob)
+        end
+        s = findn(rand(Multinomial(1, multinomial_prob)))[1]
+    end
+    return s
+end
 
 function partition(T::Type, num_nodes::Int64)
     g = load_graph(num_nodes)

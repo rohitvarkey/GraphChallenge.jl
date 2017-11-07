@@ -15,7 +15,7 @@ include("types.jl")
 include("load_graph.jl")
 include("interblock_matrix.jl")
 include("partition.jl")
-include("plot.jl")
+#include("plot.jl")
 include("evaluate.jl")
 include("run_experiment.jl")
 
