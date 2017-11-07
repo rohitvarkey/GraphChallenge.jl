@@ -16,7 +16,7 @@ end
 
 
 @testset "Initialization" begin
-    for T in (Array{Int64, 2}, )
+    for T in (Array{Int64, 2}, InterblockEdgeCountDict)
         num_nodes = 50
         g = load_graph(50)
         M = initialize_edge_counts(

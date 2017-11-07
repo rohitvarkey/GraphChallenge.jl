@@ -5,4 +5,5 @@ using Base.Test
 
 include("load_graph_tests.jl")
 include("matrix_tests.jl")
+include("dict_tests.jl")
 include("partition_tests.jl")
