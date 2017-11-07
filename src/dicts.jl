@@ -39,26 +39,33 @@ function initialize_edge_counts(
     initialize_edge_counts!(M, g, B, b)
     M
 end
-#=
-function compute_block_neighbors_and_degrees(M::Array{Int64, 2}, block::Int64)
-    out_neighbors = findn(M[:, block])
-    in_neighbors = findn(M[block, :])
+
+function compute_block_neighbors_and_degrees(M::InterblockEdgeCountDict, block::Int64)
+    out_neighbors = collect(keys(M.block_out_edges[block]))
+    in_neighbors = collect(keys(M.block_in_edges[block]))
     neighbors = collect(Set(out_neighbors) ∪ Set(in_neighbors))
-    k_in = sum(M[block, in_neighbors])
-    k_out = sum(M[out_neighbors, block])
+    k_in = sum(values(M.block_in_edges[block]))
+    k_out = sum(values(M.block_out_edges[block]))
     k = k_out + k_in
     neighbors, k_out, k_in, k
 end
 
-function compute_block_degrees(M::Array{Int64, 2}, B::Int64)
+
+function compute_block_degrees(M::InterblockEdgeCountDict, B::Int64)
     # Sum across rows to get the outdegrees for each block
-    d_out = reshape(sum(M, 1), B)
-    # Sum across cols to get the indegrees for each block
-    d_in = reshape(sum(M, 2), B)
+    d_out = zeros(Int64, B)
+    d_in = zeros(Int64, B)
+    for (k, v) in M.block_out_edges
+        d_out[k] = sum(values(v))
+    end
+    for (k, v) in M.block_in_edges
+        d_in[k] = sum(values(v))
+    end
     d = d_out + d_in
     return d_out, d_in, d
 end
 
+#=
 function initialize_edge_counts(
     _::Type{Array{Int64, 2}}, g::SimpleWeightedDiGraph, B::Int64,
     b::Vector{Int64}
