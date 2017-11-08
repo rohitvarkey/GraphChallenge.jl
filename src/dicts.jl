@@ -65,58 +65,74 @@ function compute_block_degrees(M::InterblockEdgeCountDict, B::Int64)
     return d_out, d_in, d
 end
 
-#=
-function initialize_edge_counts(
-    _::Type{Array{Int64, 2}}, g::SimpleWeightedDiGraph, B::Int64,
-    b::Vector{Int64}
-    )
-    M = zeros(Int64, B, B)
-    initialize_edge_counts!(M, g, B, b)
-    M
-end
-
 function compute_new_matrix(
-    M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64,
+    M::InterblockEdgeCountDict, r::Int64, s::Int64, num_blocks::Int64,
     out_block_count_map, in_block_count_map, self_edge_weight::Int64
     )
 
-    M_r_row = copy(M[r, :])
-    M_r_col = copy(M[:, r])
-    M_s_row = copy(M[s, :])
-    M_s_col = copy(M[:, s])
+    M_r_row = copy(M.block_out_edges[r])
+    M_r_col = copy(M.block_in_edges[r])
+    M_s_row = copy(M.block_out_edges[s])
+    M_s_col = copy(M.block_in_edges[s])
+
 
     for (block, out_count) in out_block_count_map
         M_r_col[block] -= out_count
-        M_s_col[block] += out_count
+        M_s_col[block] = get(M_s_col, block, 0) + out_count
+        if (block => 0) in M_r_col
+            pop!(M_r_col, block)
+        end
         if block == r
             M_r_row[r] -= out_count
-            M_r_row[s] += out_count
+            M_r_row[s] = get(M_r_row, block, 0) + out_count
+            if (block => 0) in M_r_row
+                pop!(M_r_col, block)
+            end
         elseif block == s
             M_s_row[r] -= out_count
-            M_s_row[s] += out_count
+            M_s_row[s] += get(M_s_row, block, 0) + out_count
+            if (block => 0) in M_s_row
+                pop!(M_s_col, block)
+            end
         end
     end
 
     for (block, in_count) in in_block_count_map
         M_r_row[block] -= in_count
-        M_s_row[block] += in_count
+        M_s_row[block] = get(M_s_row, block, 0) + in_count
+        if (block => 0) in M_r_row
+            pop!(M_r_row, block)
+        end
         if block == r
             M_r_col[r] -= in_count
-            M_r_col[s] += in_count
+            M_r_col[s] = get(M_r_row, block, 0) + out_count
+            if (block => 0) in M_r_col
+                pop!(M_r_col, block)
+            end
         elseif block == s
             M_s_col[r] -= in_count
-            M_s_col[s] += in_count
+            M_s_col[s] = get(M_s_col, block, 0) + in_count
+            if (block => 0) in M_s_col
+                pop!(M_s_col, block)
+            end
         end
     end
 
     M_s_row[r] -= self_edge_weight
-    M_s_row[s] += self_edge_weight
+    M_s_row[s] = get(M_s_row, block, 0) + self_edge_weight
     M_s_col[r] -= self_edge_weight
-    M_s_col[s] += self_edge_weight
+    M_s_col[s] = get(M_s_col, block, 0) + self_edge_weight
+
+    if (block => 0) in M_s_row
+        pop!(M_s_row, block)
+    end
+    if (block => 0) in M_s_col
+        pop!(M_s_col, block)
+    end
 
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
-
+#=
 """Computes the new rows and cols in `M`, when all nodes from `r` are shifted to
 block `s`."""
 function compute_new_matrix_agglomerative(
