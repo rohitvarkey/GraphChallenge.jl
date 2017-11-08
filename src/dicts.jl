@@ -70,10 +70,26 @@ function compute_new_matrix(
     out_block_count_map, in_block_count_map, self_edge_weight::Int64
     )
 
-    M_r_row = copy(M.block_out_edges[r])
-    M_r_col = copy(M.block_in_edges[r])
-    M_s_row = copy(M.block_out_edges[s])
-    M_s_col = copy(M.block_in_edges[s])
+    if r in keys(M.block_out_edges)
+        M_r_row = copy(M.block_out_edges[r])
+    else
+        M_r_row = Dict{Int64, Int64}()
+    end
+    if r in keys(M.block_in_edges)
+        M_r_col = copy(M.block_in_edges[r])
+    else
+        M_r_col = Dict{Int64, Int64}()
+    end
+    if s in keys(M.block_out_edges)
+        M_s_row = copy(M.block_out_edges[s])
+    else
+        M_s_row = Dict{Int64, Int64}()
+    end
+    if s in keys(M.block_in_edges)
+        M_s_col = copy(M.block_in_edges[s])
+    else
+        M_s_col = Dict{Int64, Int64}()
+    end
 
 
     for (block, out_count) in out_block_count_map
@@ -85,14 +101,14 @@ function compute_new_matrix(
         if block == r
             M_r_row[r] -= out_count
             M_r_row[s] = get(M_r_row, block, 0) + out_count
-            if (block => 0) in M_r_row
-                pop!(M_r_col, block)
+            if (r => 0) in M_r_row
+                pop!(M_r_col, r)
             end
         elseif block == s
             M_s_row[r] -= out_count
             M_s_row[s] += get(M_s_row, block, 0) + out_count
-            if (block => 0) in M_s_row
-                pop!(M_s_col, block)
+            if (s => 0) in M_s_row
+                pop!(M_s_col, s)
             end
         end
     end
@@ -106,14 +122,14 @@ function compute_new_matrix(
         if block == r
             M_r_col[r] -= in_count
             M_r_col[s] = get(M_r_row, block, 0) + out_count
-            if (block => 0) in M_r_col
-                pop!(M_r_col, block)
+            if (r => 0) in M_r_col
+                pop!(M_r_col, r)
             end
         elseif block == s
             M_s_col[r] -= in_count
             M_s_col[s] = get(M_s_col, block, 0) + in_count
-            if (block => 0) in M_s_col
-                pop!(M_s_col, block)
+            if (s => 0) in M_s_col
+                pop!(M_s_col, s)
             end
         end
     end
@@ -123,11 +139,11 @@ function compute_new_matrix(
     M_s_col[r] -= self_edge_weight
     M_s_col[s] = get(M_s_col, block, 0) + self_edge_weight
 
-    if (block => 0) in M_s_row
-        pop!(M_s_row, block)
+    if (r => 0) in M_s_row
+        pop!(M_s_row, r)
     end
-    if (block => 0) in M_s_col
-        pop!(M_s_col, block)
+    if (r => 0) in M_s_col
+        pop!(M_s_col, r)
     end
 
     return M_r_row, M_r_col, M_s_row, M_s_col
