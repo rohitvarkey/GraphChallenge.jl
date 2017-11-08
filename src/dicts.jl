@@ -209,13 +209,21 @@ function compute_new_matrix_agglomerative(
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
 
-#=
+
 function compute_multinomial_probs(
-    M::Array{Int64, 2},  degrees::Vector{Int64}, vertex::Int64
+    M::Array{Int64, 2},  degrees::Vector{Int64}, block::Int64
     )
-    return (M[:, vertex] .+ M[vertex, :]) ./ degrees[vertex]
+    probabilities = zeros(Int64, length(degrees))
+    for (out_neighbor, edgecount) in M.block_out_edges[block]
+        probabilities[out_neighbor] += edgecount/degrees[block]
+    end
+    for (in_neighbor, edgecount) in M.block_in_edges[block]
+        probabilities[in_neighbor] += edgecount/degrees[block]
+    end
+    return neighbors
 end
 
+#=
 function compute_delta_entropy(
     M::Array{Int64, 2}, r::Int64, s::Int64,
     M_r_col::Vector{Int64}, M_s_col::Vector{Int64}, M_r_row::Vector{Int64},
