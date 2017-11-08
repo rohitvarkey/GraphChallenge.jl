@@ -132,32 +132,68 @@ function compute_new_matrix(
 
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
-#=
+
 """Computes the new rows and cols in `M`, when all nodes from `r` are shifted to
 block `s`."""
 function compute_new_matrix_agglomerative(
-    M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64
+    M::InterblockEdgeCountDict, r::Int64, s::Int64, num_blocks::Int64
     )
 
-    M_r_row = zeros(Int64, num_blocks)
-    M_r_col = zeros(Int64, num_blocks)
+    M_r_row = Dict{Int64, Int64}()
+    M_r_col = Dict{Int64, Int64}()
 
-    M_s_row = copy(M[s, :])
-    M_s_col = copy(M[:, s])
+    if s in keys(M.block_out_edges)
+        M_s_row = copy(M.block_out_edges[s])
+    else
+        M_s_row = Dict{Int64, Int64}()
+    end
+    if s in keys(M.block_in_edges)
+        M_s_col = copy(M.block_in_edges[s])
+    else
+        M_s_col = Dict{Int64, Int64}()
+    end
 
-    #TODO: Optimize this
-    M_s_row += M[r, :]
-    M_s_row[r] = 0
-    M_s_row[s] += M[r, r] + M[s, r]
+    # Add all outgoing edges in r to s.
+    for (out_neighbor, edgecount) in M.block_out_edges[r]
+        M_s_row[out_neighbor] = get(M_s_row, out_neighbor, 0) + edgecount
+    end
 
-    M_s_col += M[:, r]
-    M_s_col[r] = 0
-    M_s_col[s] += M[r, r] + M[r, s]
+    if r in keys(M_s_row)
+        pop!(M_s_row, r) #Set to 0 by popping.
+    end
 
-    #TODO : Check self edge case
+    # Add edges within r to s
+    if r in keys(M.block_out_edges)
+        M_s_row[s] = get(M_s_row, s, 0) + get(M.block_out_edges[r], r, 0)
+    end
+
+    # Add edges that went from s to r
+    if s in keys(M.block_in_edges)
+         M_s_row[s] += get(M.block_in_edges[s], r, 0)
+    end
+
+    # Add all incoming edges in r to s
+    for (in_neighbor, edgecount) in M.block_in_edges[r]
+        M_s_col[in_neighbor] = get(M_s_col, in_neighbor, 0) + edgecount
+    end
+    if r in keys(M_s_col)
+        pop!(M_s_col, r) #Set to 0 by popping.
+    end
+
+    # Add self edges within r to s.
+    if r in keys(M.block_in_edges)
+        M_s_col[s] = get(M_s_col, s, 0) + get(M.block_in_edges[r], r, 0)
+    end
+
+    # Add all edges that went from r to s.
+    if s in keys(M.block_in_edges)
+         M_s_row[s] += get(M.block_in_edges[s], r, 0)
+    end
+
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
 
+#=
 function compute_multinomial_probs(
     M::Array{Int64, 2},  degrees::Vector{Int64}, vertex::Int64
     )
