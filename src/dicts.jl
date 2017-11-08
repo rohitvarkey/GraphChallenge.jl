@@ -213,7 +213,7 @@ end
 function compute_multinomial_probs(
     M::Array{Int64, 2},  degrees::Vector{Int64}, block::Int64
     )
-    probabilities = zeros(Int64, length(degrees))
+    probabilities = zeros(length(degrees))
     for (out_neighbor, edgecount) in M.block_out_edges[block]
         probabilities[out_neighbor] += edgecount/degrees[block]
     end
@@ -223,50 +223,50 @@ function compute_multinomial_probs(
     return neighbors
 end
 
-#=
 function compute_delta_entropy(
-    M::Array{Int64, 2}, r::Int64, s::Int64,
-    M_r_col::Vector{Int64}, M_s_col::Vector{Int64}, M_r_row::Vector{Int64},
-    M_s_row::Vector{Int64}, d_out::Vector{Int64}, d_in::Vector{Int64},
+    M::InterblockEdgeCountDict, r::Int64, s::Int64,
+    M_r_col::Dict{Int64, Int64}, M_s_col::Dict{Int64, Int64},
+    M_r_row::Dict{Int64, Int64}, M_s_row::Vector{Int64},
+    d_out::Vector{Int64}, d_in::Vector{Int64},
     d_out_new::Vector{Int64}, d_in_new::Vector{Int64}
     )
     delta = 0.0
     # Sum over col of r in new M
-    for t1 in findn(M_r_col)
+    for (t1, edgecount) in M_r_col
         # Skip if t1 is r or s to prevent double counting
         if t1 ∈ (r, s)
             continue
         end
-        delta -= M_r_col[t1] * log(M_r_col[t1] / d_in_new[t1] / d_out_new[r])
+        delta -= edgecount * log(edgecount / d_in_new[t1] / d_out_new[r])
     end
-    for t1 in findn(M_s_col)
+    for (t1, edgecount) in M_s_col
         if t1 ∈ (r, s)
             continue
         end
-        delta -= M_s_col[t1] * log(M_s_col[t1] / d_in_new[t1] / d_out_new[s])
+        delta -= edgecount * log(edgecount / d_in_new[t1] / d_out_new[s])
     end
     # Sum over row of r in new M
-    for t2 in findn(M_r_row)
-        delta -= M_r_row[t2] * log(M_r_row[t2] / d_in_new[r] / d_out_new[t2])
+    for (t2, edgecount) in M_r_row
+        delta -= edgecount * log(edgecount / d_in_new[r] / d_out_new[t2])
     end
     # Sum over row of s in new M
-    for t2 in findn(M_s_row)
-        delta -= M_s_row[t2] * log(M_s_row[t2] / d_in_new[s] / d_out_new[t2])
+    for (t2, edgecount) in M_s_row
+        delta -= edgecount * log(edgecount / d_in_new[s] / d_out_new[t2])
     end
     # Sum over columns in old M
     for t2 in (r, s)
-        for t1 in findn(M[:, t2])
+        for (t1, edgecount) in M.block_out_edges[t2]
             # Skip if t1 is r or s to prevent double counting
             if t1 ∈ (r, s)
                 continue
             end
-            delta += M[t1, t2] * log(M[t1, t2] / d_in[t1] / d_out[t2])
+            delta += edgecount * log(edgecount / d_in[t1] / d_out[t2])
         end
     end
     # Sum over rows in old M
     for t1 in (r, s)
-        for t2 in findn(M[t1, :])
-            delta += M[t1, t2] * log(M[t1, t2] / d_in[t1] / d_out[t2])
+        for (t2, edgecount) in M.block_in_edges[t1]
+            delta += edgecount * log(edgecount / d_in[t1] / d_out[t2])
         end
     end
     #println("Delta: $delta")
