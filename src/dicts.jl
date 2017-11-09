@@ -283,7 +283,7 @@ function compute_delta_entropy(
     end
     # Sum over columns in old M
     for t2 in (r, s)
-        for (t1, edgecount) in M.block_out_edges[t2]
+        for (t1, edgecount) in get(M.block_out_edges, t2, Dict{Int64, Int64}())
             # Skip if t1 is r or s to prevent double counting
             if t1 ∈ (r, s)
                 continue
@@ -293,7 +293,7 @@ function compute_delta_entropy(
     end
     # Sum over rows in old M
     for t1 in (r, s)
-        for (t2, edgecount) in M.block_in_edges[t1]
+        for (t2, edgecount) in get(M.block_in_edges, t1, Dict{Int64, Int64}())
             delta += edgecount * log(edgecount / d_in[t1] / d_out[t2])
         end
     end
