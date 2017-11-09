@@ -421,3 +421,10 @@ function update_partition(
     @show M.block_out_edges[s], M.block_in_edges[s]
     M
 end
+
+function zeros_interblock_edge_matrix(::Type{InterblockEdgeCountDict}, size::Int64)
+    return InterblockEdgeCountDict(
+        Dict{Int64, Dict{Int64}}(),
+        Dict{Int64, Dict{Int64}}()
+    )
+end

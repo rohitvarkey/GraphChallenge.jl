@@ -61,9 +61,9 @@ function agglomerative_updates(
     b, new_num_blocks
 end
 
-function prepare_for_partition_on_next_num_blocks(
-    current_partition::Partition{Array{Int64, 2}},
-    best_partitions::Vector{Partition{Array{Int64, 2}}},
+function prepare_for_partition_on_next_num_blocks{T}(
+    current_partition::Partition{T},
+    best_partitions::Vector{Partition{T}},
     B_rate::Float64
     )
     optimal_B_found = false
@@ -211,11 +211,11 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     delta_entropy_moving_avg_window = 3
 
     old_overall_entropy = [Inf, Inf, Inf]
-    best_partitions = Vector{Partition{Array{Int64, 2}}}(3)
+    best_partitions = Vector{Partition{T}}(3)
     for i=1:3
         #Create dummy partitions
         best_partitions[i] = Partition(
-            zeros(Int64, num_blocks, num_blocks),
+            zeros_interblock_edge_matrix(T, nv(g)),
             Inf,
             zeros(Int64, nv(g)),
             zeros(Int64, nv(g)),

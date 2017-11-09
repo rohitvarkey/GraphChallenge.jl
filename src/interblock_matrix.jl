@@ -270,3 +270,7 @@ function update_partition(
     #info("Updated partition")
     M
 end
+
+function zeros_interblock_edge_matrix(::Type{Array{Int64, 2}}, size::Int64)
+    return zeros(Int64, size, size)
+end
