@@ -46,6 +46,7 @@ function compute_new_matrix(
     out_block_count_map, in_block_count_map, self_edge_weight::Int64
     )
 
+    @show r, s, out_block_count_map, in_block_count_map
     M_r_row = copy(M[r, :])
     M_r_col = copy(M[:, r])
     M_s_row = copy(M[s, :])
@@ -79,6 +80,11 @@ function compute_new_matrix(
     M_s_row[s] += self_edge_weight
     M_s_col[r] -= self_edge_weight
     M_s_col[s] += self_edge_weight
+
+    @show findn(M_r_row)
+    @show findn(M_r_col)
+    @show findn(M_s_row)
+    @show findn(M_s_col)
 
     return M_r_row, M_r_col, M_s_row, M_s_col
 end

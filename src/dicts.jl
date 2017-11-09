@@ -90,6 +90,12 @@ function compute_new_matrix(
         M_s_row = Dict{Int64, Int64}()
     end
 
+    @show r, s, out_block_count_map, in_block_count_map
+    @show M_r_row
+    @show M_r_col
+    @show M_s_row
+    @show M_s_col
+
     for (block, out_count) in out_block_count_map
         # Move outgoing edges from r to s.
         M_r_col[block] -= out_count
@@ -151,6 +157,11 @@ function compute_new_matrix(
     if (r => 0) in M_s_col
         pop!(M_s_col, r)
     end
+
+    @show M_r_row
+    @show M_r_col
+    @show M_s_row
+    @show M_s_col
 
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
@@ -392,6 +403,21 @@ function update_partition(
     M.block_in_edges[r] = M_r_row
     M.block_out_edges[s] = M_s_col
     M.block_in_edges[s] = M_s_row
-    #info("Updated partition")
+    for (out_block, edgecount) in M_r_col
+        M.block_in_edges[out_block][r] = edgecount
+    end
+    for (out_block, edgecount) in M_s_col
+        M.block_in_edges[out_block][s] = edgecount
+    end
+    for (in_block, edgecount) in M_r_row
+        M.block_out_edges[in_block][r] = edgecount
+    end
+    for (in_block, edgecount) in M_s_row
+        M.block_out_edges[in_block][s] = edgecount
+    end
+    println("Updated partition")
+    @show r, s
+    @show M.block_out_edges[r], M.block_in_edges[r]
+    @show M.block_out_edges[s], M.block_in_edges[s]
     M
 end

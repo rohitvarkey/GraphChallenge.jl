@@ -235,9 +235,13 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
             M, num_blocks, num_blocks_to_merge, partition, d, d_in, d_out,
             num_agg_proposals_per_block = num_agg_proposals_per_block,
         )
+        @show collect(zip(out_neighbors(g, 12), partition[out_neighbors(g, 12)]))
         M = initialize_edge_counts(T, g, num_blocks, partition)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
 
+        info("After agg")
+        @show M.block_out_edges[6], M.block_in_edges[6]
+        @show M.block_out_edges[10], M.block_in_edges[10]
         # compute the global entropy for MCMC convergence criterion
         overall_entropy = compute_overall_entropy(
             M, d_out, d_in, num_blocks, nv(g), ne(g)
@@ -263,8 +267,11 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                     M, current_block, partition, num_blocks,
                     d, vcat(out_n, in_n), vcat(out_wts, in_wts)
                 )
+                @show current_block, proposal
+                @show partition[out_n], out_n
+                @show partition[in_n], in_n
                 if (proposal != current_block)
-                    #info("Performing nodal move on $current_node")
+                    println("Performing nodal move on $current_node")
                     blocks_out_count_map = countmap(
                         partition[out_n], Distributions.weights(out_wts)
                     )
@@ -279,6 +286,9 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                     k_in = length(in_n)
                     k_out = outdegree(g, current_node)
 
+                    @show blocks_out_count_map
+                    @show blocks_in_count_map
+
                     M_r_row, M_r_col, M_s_row, M_s_col, Δ, p_accept =
                     evaluate_nodal_proposal(
                         M, current_block, proposal, num_blocks, β,
@@ -291,14 +301,21 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                         total_num_nodal_moves += 1
                         num_nodal_moves += 1
                         nodal_itr_delta_entropy[nodal_itr] += Δ
+                        println("Trying to update partition")
                         M = update_partition(
                             M, current_block, proposal,
                             M_r_col, M_s_col, M_r_row, M_s_row
                         )
+                        @show current_block, proposal
+                        @show M.block_out_edges[current_block], M.block_in_edges[current_block]
+                        @show M.block_out_edges[proposal], M.block_in_edges[proposal]
                         d_out, d_in, d = compute_block_degrees(M, num_blocks)
                         partition[current_node] = proposal
                     end
                 end
+                println("After nodal update")
+                @show M.block_out_edges[6], M.block_in_edges[6]
+                @show M.block_out_edges[10], M.block_in_edges[10]
             end
             # exit MCMC if the recent change in entropy falls below a small fraction of the overall entropy
             println("Itr: $nodal_itr, nodal moves: $(num_nodal_moves), Δ: $(nodal_itr_delta_entropy[nodal_itr]), fraction: $(-nodal_itr_delta_entropy[nodal_itr]/overall_entropy)")
