@@ -18,7 +18,7 @@ function initialize_edge_counts!(
         else
             M.block_out_edges[s] =  Dict(d=>1)
         end
-        if b[d] in keys(M.block_in_edges)
+        if d in keys(M.block_in_edges)
             M.block_in_edges[d][s] = get(M.block_in_edges[d], s, 0) + 1
         else
             M.block_in_edges[d] =  Dict(s=>1)
@@ -71,24 +71,24 @@ function compute_new_matrix(
     )
 
     if r in keys(M.block_out_edges)
-        M_r_row = copy(M.block_out_edges[r])
-    else
-        M_r_row = Dict{Int64, Int64}()
-    end
-    if r in keys(M.block_in_edges)
-        M_r_col = copy(M.block_in_edges[r])
+        M_r_col = copy(M.block_out_edges[r])
     else
         M_r_col = Dict{Int64, Int64}()
     end
-    if s in keys(M.block_out_edges)
-        M_s_row = copy(M.block_out_edges[s])
+    if r in keys(M.block_in_edges)
+        M_r_row = copy(M.block_in_edges[r])
     else
-        M_s_row = Dict{Int64, Int64}()
+        M_r_row = Dict{Int64, Int64}()
     end
-    if s in keys(M.block_in_edges)
-        M_s_col = copy(M.block_in_edges[s])
+    if s in keys(M.block_out_edges)
+        M_s_col = copy(M.block_out_edges[s])
     else
         M_s_col = Dict{Int64, Int64}()
+    end
+    if s in keys(M.block_in_edges)
+        M_s_row = copy(M.block_in_edges[s])
+    else
+        M_s_row = Dict{Int64, Int64}()
     end
 
 
@@ -102,13 +102,13 @@ function compute_new_matrix(
             M_r_row[r] -= out_count
             M_r_row[s] = get(M_r_row, block, 0) + out_count
             if (r => 0) in M_r_row
-                pop!(M_r_col, r)
+                pop!(M_r_row, r)
             end
         elseif block == s
             M_s_row[r] -= out_count
-            M_s_row[s] += get(M_s_row, block, 0) + out_count
+            M_s_row[s] = get(M_s_row, block, 0) + out_count
             if (s => 0) in M_s_row
-                pop!(M_s_col, s)
+                pop!(M_s_row, s)
             end
         end
     end
@@ -121,7 +121,7 @@ function compute_new_matrix(
         end
         if block == r
             M_r_col[r] -= in_count
-            M_r_col[s] = get(M_r_row, block, 0) + out_count
+            M_r_col[s] = get(M_r_row, block, 0) + in_count
             if (r => 0) in M_r_col
                 pop!(M_r_col, r)
             end
@@ -134,10 +134,12 @@ function compute_new_matrix(
         end
     end
 
-    M_s_row[r] -= self_edge_weight
-    M_s_row[s] = get(M_s_row, block, 0) + self_edge_weight
-    M_s_col[r] -= self_edge_weight
-    M_s_col[s] = get(M_s_col, block, 0) + self_edge_weight
+    if self_edge_weight > 0
+        M_s_row[r] -= self_edge_weight
+        M_s_row[s] = get(M_s_row, s, 0) + self_edge_weight
+        M_s_col[r] -= self_edge_weight
+        M_s_col[s] = get(M_s_col, s, 0) + self_edge_weight
+    end
 
     if (r => 0) in M_s_row
         pop!(M_s_row, r)
@@ -159,12 +161,12 @@ function compute_new_matrix_agglomerative(
     M_r_col = Dict{Int64, Int64}()
 
     if s in keys(M.block_out_edges)
-        M_s_row = copy(M.block_out_edges[s])
+        M_s_row = copy(M.block_in_edges[s])
     else
         M_s_row = Dict{Int64, Int64}()
     end
     if s in keys(M.block_in_edges)
-        M_s_col = copy(M.block_in_edges[s])
+        M_s_col = copy(M.block_out_edges[s])
     else
         M_s_col = Dict{Int64, Int64}()
     end
@@ -211,7 +213,7 @@ end
 
 
 function compute_multinomial_probs(
-    M::Array{Int64, 2},  degrees::Vector{Int64}, block::Int64
+    M::InterblockEdgeCountDict,  degrees::Vector{Int64}, block::Int64
     )
     probabilities = zeros(length(degrees))
     for (out_neighbor, edgecount) in M.block_out_edges[block]
@@ -220,13 +222,13 @@ function compute_multinomial_probs(
     for (in_neighbor, edgecount) in M.block_in_edges[block]
         probabilities[in_neighbor] += edgecount/degrees[block]
     end
-    return neighbors
+    return probabilities
 end
 
 function compute_delta_entropy(
     M::InterblockEdgeCountDict, r::Int64, s::Int64,
     M_r_col::Dict{Int64, Int64}, M_s_col::Dict{Int64, Int64},
-    M_r_row::Dict{Int64, Int64}, M_s_row::Vector{Int64},
+    M_r_row::Dict{Int64, Int64}, M_s_row::Dict{Int64, Int64},
     d_out::Vector{Int64}, d_in::Vector{Int64},
     d_out_new::Vector{Int64}, d_in_new::Vector{Int64}
     )
@@ -274,13 +276,14 @@ function compute_delta_entropy(
 end
 
 function compute_overall_entropy(
-        M::Array{Int64, 2}, d_out::Vector{Int64}, d_in::Vector{Int64},
+        M::InterblockEdgeCountDict, d_out::Vector{Int64}, d_in::Vector{Int64},
         B::Int64, N::Int64, E::Int64
     )
-    rows, cols = findn(M)  # all non-zero entries
     summation_term = 0.0
-    for (col, row) in zip(cols, rows)
-        summation_term -= M[row, col] * log(M[row, col]/ d_in[row] / d_out[col])
+    for (out_block, edges) in M.block_out_edges
+        for (in_block, edgecount) in edges
+            summation_term -= edgecount * log(edgecount/ d_in[in_block] / d_out[out_block])
+        end
     end
     model_S_term = B^2 / E
     model_S = E * (1 + model_S_term) * log(1 + model_S_term) -
@@ -290,8 +293,8 @@ function compute_overall_entropy(
 end
 
 function compute_hastings_correction(
-        s::Int64, M::Array{Int64, 2}, M_r_row::Vector{Int64},
-        M_r_col::Vector{Int64}, B::Int64, d::Vector{Int64}, d_new::Vector{Int64},
+        s::Int64, M::InterblockEdgeCountDict, M_r_row::Dict{Int64, Int64},
+        M_r_col::Dict{Int64, Int64}, B::Int64, d::Vector{Int64}, d_new::Vector{Int64},
         blocks_out_count_map, blocks_in_count_map
     )
     blocks = Set(keys(blocks_out_count_map)) ∪ Set(keys(blocks_in_count_map))
@@ -299,14 +302,20 @@ function compute_hastings_correction(
     p_backward = 0.0
     for t in blocks
         degree = get(blocks_out_count_map, t, 0) + get(blocks_in_count_map, t, 0)
-        p_forward += degree * (M[t, s] + M[s, t] + 1) / (d[t] + B)
-        p_backward += degree * (M_r_row[t] + M_r_col[t] + 1) / (d_new[t] + B)
+        if t in keys(M.block_out_edges)
+            m = get(M.block_out_edges[t], s, 0)
+        end
+        if s in keys(M.block_out_edges)
+            m += get(M.block_out_edges[s], t, 0)
+        end
+        p_forward += degree * (m + 1) / (d[t] + B)
+        p_backward += degree * (get(M_r_row, t, 0) + get(M_r_col, t, 0) + 1) / (d_new[t] + B)
     end
     return p_backward / p_forward
 end
 
 function evaluate_proposal_agg(
-    M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64,
+    M::InterblockEdgeCountDict, r::Int64, s::Int64, num_blocks::Int64,
     d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
     k::Int64, k_in::Int64, k_out::Int64
     )
@@ -327,7 +336,7 @@ function evaluate_proposal_agg(
 end
 
 function evaluate_nodal_proposal(
-    M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64, β::Int64,
+    M::InterblockEdgeCountDict, r::Int64, s::Int64, num_blocks::Int64, β::Int64,
     d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
     k::Int64, k_in::Int64, k_out::Int64, self_edge_weight::Int64,
     blocks_out_count_map, blocks_in_count_map
@@ -363,15 +372,14 @@ function evaluate_nodal_proposal(
 end
 
 function update_partition(
-    M::Array{Int64, 2}, r::Int64, s::Int64,
-    M_r_col::Vector{Int64}, M_s_col::Vector{Int64},
-    M_r_row::Vector{Int64}, M_s_row::Vector{Int64}
+    M::InterblockEdgeCountDict, r::Int64, s::Int64,
+    M_r_col::Dict{Int64, Int64}, M_s_col::Dict{Int64, Int64},
+    M_r_row::Dict{Int64, Int64}, M_s_row::Dict{Int64, Int64}
     )
-    M[:, r] = M_r_col
-    M[r, :] = M_r_row
-    M[:, s] = M_s_col
-    M[s, :] = M_s_row
+    M.block_out_edges[r] = M_r_col
+    M.block_in_edges[r] = M_r_row
+    M.block_out_edges[s] = M_s_col
+    M.block_in_edges[s] = M_s_row
     #info("Updated partition")
     M
 end
-=#
