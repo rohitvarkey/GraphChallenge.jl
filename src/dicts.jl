@@ -90,24 +90,28 @@ function compute_new_matrix(
         M_s_row = Dict{Int64, Int64}()
     end
 
-
     for (block, out_count) in out_block_count_map
+        # Move outgoing edges from r to s.
         M_r_col[block] -= out_count
         M_s_col[block] = get(M_s_col, block, 0) + out_count
         if (block => 0) in M_r_col
             pop!(M_r_col, block)
         end
         if block == r
-            M_r_row[r] -= out_count
-            M_r_row[s] = get(M_r_row, block, 0) + out_count
+            # Edges in the same block.
+            M_r_row[r] -= out_count # Remove from in count of r.
+            # Add to the in count of edges to r from s
+            M_r_row[s] = get(M_r_row, s, 0) + out_count
             if (r => 0) in M_r_row
                 pop!(M_r_row, r)
             end
         elseif block == s
+            # Edges from r to s.
             M_s_row[r] -= out_count
-            M_s_row[s] = get(M_s_row, block, 0) + out_count
-            if (s => 0) in M_s_row
-                pop!(M_s_row, s)
+            # Add as self edges
+            M_s_row[s] = get(M_s_row, s, 0) + out_count
+            if (r => 0) in M_s_row
+                pop!(M_s_row, r)
             end
         end
     end
@@ -120,13 +124,13 @@ function compute_new_matrix(
         end
         if block == r
             M_r_col[r] -= in_count
-            M_r_col[s] = get(M_r_row, block, 0) + in_count
+            M_r_col[s] = get(M_r_col, s, 0) + in_count
             if (r => 0) in M_r_col
                 pop!(M_r_col, r)
             end
         elseif block == s
             M_s_col[r] -= in_count
-            M_s_col[s] = get(M_s_col, block, 0) + in_count
+            M_s_col[s] = get(M_s_col, s, 0) + in_count
             if (s => 0) in M_s_col
                 pop!(M_s_col, s)
             end
@@ -134,6 +138,7 @@ function compute_new_matrix(
     end
 
     if self_edge_weight > 0
+        # Correct counts based on self_edge_weight
         M_s_row[r] -= self_edge_weight
         M_s_row[s] = get(M_s_row, s, 0) + self_edge_weight
         M_s_col[r] -= self_edge_weight
