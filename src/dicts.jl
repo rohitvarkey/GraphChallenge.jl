@@ -16,15 +16,14 @@ function initialize_edge_counts!(
         if s in keys(M.block_out_edges)
             M.block_out_edges[s][d] = get(M.block_out_edges[s], d, 0) + 1
         else
-            M.block_out_edges[s] =  Dict(d=>1)
+            M.block_out_edges[s] = Dict(d=>1)
         end
         if d in keys(M.block_in_edges)
             M.block_in_edges[d][s] = get(M.block_in_edges[d], s, 0) + 1
         else
-            M.block_in_edges[d] =  Dict(s=>1)
+            M.block_in_edges[d] = Dict(s=>1)
         end
     end
-    @show M
     M
 end
 
@@ -160,47 +159,45 @@ function compute_new_matrix_agglomerative(
     M_r_row = Dict{Int64, Int64}()
     M_r_col = Dict{Int64, Int64}()
 
-    if s in keys(M.block_out_edges)
+    if s in keys(M.block_in_edges)
         M_s_row = copy(M.block_in_edges[s])
     else
         M_s_row = Dict{Int64, Int64}()
     end
-    if s in keys(M.block_in_edges)
+    if s in keys(M.block_out_edges)
         M_s_col = copy(M.block_out_edges[s])
     else
         M_s_col = Dict{Int64, Int64}()
     end
 
-    # Add all outgoing edges in r to s.
-    for (out_neighbor, edgecount) in M.block_out_edges[r]
-        M_s_row[out_neighbor] = get(M_s_row, out_neighbor, 0) + edgecount
-    end
-
-    if r in keys(M_s_row)
-        pop!(M_s_row, r) #Set to 0 by popping.
-    end
-
-    # Add edges within r to s
     if r in keys(M.block_out_edges)
-        M_s_row[s] = get(M_s_row, s, 0) + get(M.block_out_edges[r], r, 0)
+        # Add all outgoing edges in r to s.
+        for (out_neighbor, edgecount) in M.block_out_edges[r]
+            M_s_col[out_neighbor] = get(M_s_col, out_neighbor, 0) + edgecount
+        end
+        # Add self edges within r to s
+        M_s_col[s] = get(M_s_col, s, 0) + get(M.block_out_edges[r], r, 0)
     end
 
-    # Add edges that went from s to r
-    if s in keys(M.block_in_edges)
-         M_s_row[s] += get(M.block_in_edges[s], r, 0)
-    end
-
-    # Add all incoming edges in r to s
-    for (in_neighbor, edgecount) in M.block_in_edges[r]
-        M_s_col[in_neighbor] = get(M_s_col, in_neighbor, 0) + edgecount
-    end
     if r in keys(M_s_col)
         pop!(M_s_col, r) #Set to 0 by popping.
     end
 
-    # Add self edges within r to s.
+    # Add edges that went from s to r
+    if s in keys(M.block_out_edges)
+         M_s_col[s] = get(M_s_col, s, 0) + get(M.block_out_edges[s], r, 0)
+    end
+
     if r in keys(M.block_in_edges)
-        M_s_col[s] = get(M_s_col, s, 0) + get(M.block_in_edges[r], r, 0)
+        # Add all incoming edges in r to s
+        for (in_neighbor, edgecount) in M.block_in_edges[r]
+            M_s_row[in_neighbor] = get(M_s_row, in_neighbor, 0) + edgecount
+        end
+        # Add self edges within r to s
+        M_s_row[s] = get(M_s_row, s, 0) + get(M.block_in_edges[r], r, 0)
+    end
+    if r in keys(M_s_row)
+        pop!(M_s_row, r) #Set to 0 by popping.
     end
 
     # Add all edges that went from r to s.
