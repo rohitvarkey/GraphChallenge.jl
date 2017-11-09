@@ -181,7 +181,10 @@ function compute_new_matrix_agglomerative(
             M_s_col[out_neighbor] = get(M_s_col, out_neighbor, 0) + edgecount
         end
         # Add self edges within r to s
-        M_s_col[s] = get(M_s_col, s, 0) + get(M.block_out_edges[r], r, 0)
+        self_edge_counts = get(M_s_col, s, 0) + get(M.block_out_edges[r], r, 0)
+        if self_edge_counts > 0
+            M_s_col[s] = self_edge_counts
+        end
     end
 
     if r in keys(M_s_col)
@@ -190,7 +193,10 @@ function compute_new_matrix_agglomerative(
 
     # Add edges that went from s to r
     if s in keys(M.block_out_edges)
-         M_s_col[s] = get(M_s_col, s, 0) + get(M.block_out_edges[s], r, 0)
+        self_edge_counts  = get(M_s_col, s, 0) + get(M.block_out_edges[s], r, 0)
+        if self_edge_counts > 0
+            M_s_col[s] = self_edge_counts
+        end
     end
 
     if r in keys(M.block_in_edges)
@@ -199,7 +205,11 @@ function compute_new_matrix_agglomerative(
             M_s_row[in_neighbor] = get(M_s_row, in_neighbor, 0) + edgecount
         end
         # Add self edges within r to s
-        M_s_row[s] = get(M_s_row, s, 0) + get(M.block_in_edges[r], r, 0)
+        self_edge_counts = get(M_s_row, s, 0) + get(M.block_in_edges[r], r, 0)
+        if self_edge_counts > 0
+            M_s_row[s] = self_edge_counts
+        end
+
     end
     if r in keys(M_s_row)
         pop!(M_s_row, r) #Set to 0 by popping.
@@ -207,7 +217,10 @@ function compute_new_matrix_agglomerative(
 
     # Add all edges that went from r to s.
     if s in keys(M.block_in_edges)
-         M_s_row[s] += get(M.block_in_edges[s], r, 0)
+        self_edge_counts = get(M_s_row, s, 0) + get(M.block_in_edges[s], r, 0)
+        if self_edge_counts > 0
+            M_s_row[s] = self_edge_counts
+        end
     end
 
     return M_r_row, M_r_col, M_s_row, M_s_col
@@ -328,9 +341,6 @@ function evaluate_proposal_agg(
         new_d[r] -= degree
         new_d[s] += degree
     end
-    #@show d_in, new_degrees[2], k_in
-    #@show d_out, new_degrees[1], k_out
-    #@show d, new_degrees[3], k
     compute_delta_entropy(
         M, r, s, M_r_col, M_s_col, M_r_row, M_s_row, d_out, d_in,
         new_degrees[1], new_degrees[2]

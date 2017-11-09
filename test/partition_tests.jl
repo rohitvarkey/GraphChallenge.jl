@@ -45,7 +45,8 @@ function test_carry_out_best_merges()
 end
 
 @testset "Agglomerative step" begin
-    for T in (Array{Int64, 2}, )
+    for T in (Array{Int64, 2}, InterblockEdgeCountDict)
+        test_compute_new_matrix_agglomerative(T)
         num_nodes = 50
         g = load_graph(50)
         block_partition = collect(1:num_nodes)
@@ -102,6 +103,7 @@ end
     end
     test_carry_out_best_merges()
 end
+
 
 function test_matrix_update_agglomerative()
     M_r_row, M_r_col, M_s_row, M_s_col =
