@@ -40,11 +40,11 @@ function initialize_edge_counts(
 end
 
 function compute_block_neighbors_and_degrees(M::InterblockEdgeCountDict, block::Int64)
-    out_neighbors = collect(keys(M.block_out_edges[block]))
-    in_neighbors = collect(keys(M.block_in_edges[block]))
+    out_neighbors = collect(keys(get(M.block_out_edges, block, Dict{Int64, Int64}())))
+    in_neighbors = collect(keys(get(M.block_in_edges, block, Dict{Int64, Int64}())))
     neighbors = collect(Set(out_neighbors) ∪ Set(in_neighbors))
-    k_in = sum(values(M.block_in_edges[block]))
-    k_out = sum(values(M.block_out_edges[block]))
+    k_in = sum(values(get(M.block_in_edges, block, Dict{Int64, Int64}())))
+    k_out = sum(values(get(M.block_out_edges, block, Dict{Int64, Int64}())))
     k = k_out + k_in
     neighbors, k_out, k_in, k
 end
