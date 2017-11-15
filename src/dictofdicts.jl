@@ -1,4 +1,4 @@
-immutable InterblockEdgeCountDict
+immutable InterblockEdgeCountDictDict
     block_in_edges::Dict{Int64, Dict{Int64, Int64}}
     block_out_edges::Dict{Int64, Dict{Int64, Int64}}
 end
@@ -8,7 +8,7 @@ Initializes the edge count matrix M between the blocks.
 Calculates the new interblock_matrix edge count matrix.
 """
 function initialize_edge_counts!(
-    M::InterblockEdgeCountDict, g::SimpleWeightedDiGraph, B::Int64,
+    M::InterblockEdgeCountDictDict, g::SimpleWeightedDiGraph, B::Int64,
     b::Vector{Int64}
     )
     for edge in edges(g)
@@ -28,10 +28,10 @@ function initialize_edge_counts!(
 end
 
 function initialize_edge_counts(
-    _::Type{InterblockEdgeCountDict}, g::SimpleWeightedDiGraph, B::Int64,
+    _::Type{InterblockEdgeCountDictDict}, g::SimpleWeightedDiGraph, B::Int64,
     b::Vector{Int64}
     )
-    M = InterblockEdgeCountDict(
+    M = InterblockEdgeCountDictDict(
         Dict{Int64, Dict{Int64, Int64}}(),
         Dict{Int64, Dict{Int64, Int64}}()
     )
@@ -39,7 +39,7 @@ function initialize_edge_counts(
     M
 end
 
-function compute_block_neighbors_and_degrees(M::InterblockEdgeCountDict, block::Int64)
+function compute_block_neighbors_and_degrees(M::InterblockEdgeCountDictDict, block::Int64)
     out_neighbors = collect(keys(get(M.block_out_edges, block, Dict{Int64, Int64}())))
     in_neighbors = collect(keys(get(M.block_in_edges, block, Dict{Int64, Int64}())))
     neighbors = collect(Set(out_neighbors) ∪ Set(in_neighbors))
@@ -50,7 +50,7 @@ function compute_block_neighbors_and_degrees(M::InterblockEdgeCountDict, block::
 end
 
 
-function compute_block_degrees(M::InterblockEdgeCountDict, B::Int64)
+function compute_block_degrees(M::InterblockEdgeCountDictDict, B::Int64)
     # Sum across rows to get the outdegrees for each block
     d_out = zeros(Int64, B)
     d_in = zeros(Int64, B)
@@ -65,7 +65,7 @@ function compute_block_degrees(M::InterblockEdgeCountDict, B::Int64)
 end
 
 function compute_new_matrix(
-    M::InterblockEdgeCountDict, r::Int64, s::Int64, num_blocks::Int64,
+    M::InterblockEdgeCountDictDict, r::Int64, s::Int64, num_blocks::Int64,
     out_block_count_map, in_block_count_map, self_edge_weight::Int64
     )
 
@@ -158,7 +158,7 @@ end
 """Computes the new rows and cols in `M`, when all nodes from `r` are shifted to
 block `s`."""
 function compute_new_matrix_agglomerative(
-    M::InterblockEdgeCountDict, r::Int64, s::Int64, num_blocks::Int64
+    M::InterblockEdgeCountDictDict, r::Int64, s::Int64, num_blocks::Int64
     )
 
     M_r_row = Dict{Int64, Int64}()
@@ -228,7 +228,7 @@ end
 
 
 function compute_multinomial_probs(
-    M::InterblockEdgeCountDict,  degrees::Vector{Int64}, block::Int64
+    M::InterblockEdgeCountDictDict,  degrees::Vector{Int64}, block::Int64
     )
     probabilities = zeros(length(degrees))
     for (out_neighbor, edgecount) in M.block_out_edges[block]
@@ -241,7 +241,7 @@ function compute_multinomial_probs(
 end
 
 function compute_delta_entropy(
-    M::InterblockEdgeCountDict, r::Int64, s::Int64,
+    M::InterblockEdgeCountDictDict, r::Int64, s::Int64,
     M_r_col::Dict{Int64, Int64}, M_s_col::Dict{Int64, Int64},
     M_r_row::Dict{Int64, Int64}, M_s_row::Dict{Int64, Int64},
     d_out::Vector{Int64}, d_in::Vector{Int64},
@@ -291,7 +291,7 @@ function compute_delta_entropy(
 end
 
 function compute_overall_entropy(
-        M::InterblockEdgeCountDict, d_out::Vector{Int64}, d_in::Vector{Int64},
+        M::InterblockEdgeCountDictDict, d_out::Vector{Int64}, d_in::Vector{Int64},
         B::Int64, N::Int64, E::Int64
     )
     summation_term = 0.0
@@ -308,7 +308,7 @@ function compute_overall_entropy(
 end
 
 function compute_hastings_correction(
-        s::Int64, M::InterblockEdgeCountDict, M_r_row::Dict{Int64, Int64},
+        s::Int64, M::InterblockEdgeCountDictDict, M_r_row::Dict{Int64, Int64},
         M_r_col::Dict{Int64, Int64}, B::Int64, d::Vector{Int64}, d_new::Vector{Int64},
         blocks_out_count_map, blocks_in_count_map
     )
@@ -330,7 +330,7 @@ function compute_hastings_correction(
 end
 
 function evaluate_proposal_agg(
-    M::InterblockEdgeCountDict, r::Int64, s::Int64, num_blocks::Int64,
+    M::InterblockEdgeCountDictDict, r::Int64, s::Int64, num_blocks::Int64,
     d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
     k::Int64, k_in::Int64, k_out::Int64
     )
@@ -348,7 +348,7 @@ function evaluate_proposal_agg(
 end
 
 function evaluate_nodal_proposal(
-    M::InterblockEdgeCountDict, r::Int64, s::Int64, num_blocks::Int64, β::Int64,
+    M::InterblockEdgeCountDictDict, r::Int64, s::Int64, num_blocks::Int64, β::Int64,
     d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
     k::Int64, k_in::Int64, k_out::Int64, self_edge_weight::Int64,
     blocks_out_count_map, blocks_in_count_map
@@ -384,7 +384,7 @@ function evaluate_nodal_proposal(
 end
 
 function update_partition(
-    M::InterblockEdgeCountDict, r::Int64, s::Int64,
+    M::InterblockEdgeCountDictDict, r::Int64, s::Int64,
     M_r_col::Dict{Int64, Int64}, M_s_col::Dict{Int64, Int64},
     M_r_row::Dict{Int64, Int64}, M_s_row::Dict{Int64, Int64}
     )
@@ -407,8 +407,8 @@ function update_partition(
     M
 end
 
-function zeros_interblock_edge_matrix(::Type{InterblockEdgeCountDict}, size::Int64)
-    return InterblockEdgeCountDict(
+function zeros_interblock_edge_matrix(::Type{InterblockEdgeCountDictDict}, size::Int64)
+    return InterblockEdgeCountDictDict(
         Dict{Int64, Dict{Int64}}(),
         Dict{Int64, Dict{Int64}}()
     )

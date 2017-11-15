@@ -2,14 +2,14 @@ using LightGraphs
 using SimpleWeightedGraphs
 using GraphChallenge
 
-function test_initialize_counts(M::InterblockEdgeCountDict, g::SimpleWeightedDiGraph)
+function test_initialize_counts(M::InterblockEdgeCountDictDict, g::SimpleWeightedDiGraph)
     for edge in edges(g)
         @test M.block_in_edges[dst(edge)][src(edge)] == 1
         @test M.block_out_edges[src(edge)][dst(edge)] == 1
     end
 end
 
-function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountDict})
+function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountDictDict})
     block_out_edges = Dict(
         1 => Dict(1=>8, 2=>2, 3=>4),
         2 => Dict(1=>3, 2=>9, 3=>12),
@@ -20,7 +20,7 @@ function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountDict})
         2 => Dict(1=>2, 2=>9, 3=>6),
         3 => Dict(1=>5, 2=>12, 3=>10)
     )
-    M = InterblockEdgeCountDict(block_in_edges, block_out_edges)
+    M = InterblockEdgeCountDictDict(block_in_edges, block_out_edges)
     r = 1
     s = 2
     @show M_r_row, M_r_col, M_s_row, M_s_col =
