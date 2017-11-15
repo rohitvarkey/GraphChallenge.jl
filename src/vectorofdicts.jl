@@ -24,8 +24,8 @@ function initialize_edge_counts(
     b::Vector{Int64}
     )
     M = InterblockEdgeCountVectorDict(
-        [Dict{Int64, Int64} for i=1:B],
-        [Dict{Int64, Int64} for i=1:B]
+        [Dict{Int64, Int64}() for i=1:B],
+        [Dict{Int64, Int64}() for i=1:B]
     )
     initialize_edge_counts!(M, g, B, b)
     M
@@ -33,7 +33,7 @@ end
 
 function compute_block_neighbors_and_degrees(M::InterblockEdgeCountVectorDict, block::Int64)
     out_neighbors = collect(keys(M.block_out_edges[block]))
-    in_neighbors = collect(keys(M.block_in_edges[block])
+    in_neighbors = collect(keys(M.block_in_edges[block]))
     neighbors = collect(Set(out_neighbors) ∪ Set(in_neighbors))
     k_in = sum(values(M.block_in_edges[block]))
     k_out = sum(values(M.block_out_edges[block]))
@@ -136,16 +136,13 @@ function compute_new_matrix_agglomerative(
     M_s_row = copy(M.block_in_edges[s])
     M_s_col = copy(M.block_out_edges[s])
 
-    if r in keys(M.block_out_edges)
-        # Add all outgoing edges in r to s.
-        for (out_neighbor, edgecount) in M.block_out_edges[r]
-            M_s_col[out_neighbor] = get(M_s_col, out_neighbor, 0) + edgecount
-        end
-        # Add self edges within r to s
-        self_edge_counts = get(M_s_col, s, 0) + get(M.block_out_edges[r], r, 0)
-        if self_edge_counts > 0
-            M_s_col[s] = self_edge_counts
-        end
+    for (out_neighbor, edgecount) in M.block_out_edges[r]
+        M_s_col[out_neighbor] = get(M_s_col, out_neighbor, 0) + edgecount
+    end
+    # Add self edges within r to s
+    self_edge_counts = get(M_s_col, s, 0) + get(M.block_out_edges[r], r, 0)
+    if self_edge_counts > 0
+        M_s_col[s] = self_edge_counts
     end
 
     if r in keys(M_s_col)
@@ -153,35 +150,29 @@ function compute_new_matrix_agglomerative(
     end
 
     # Add edges that went from s to r
-    if s in keys(M.block_out_edges)
-        self_edge_counts  = get(M_s_col, s, 0) + get(M.block_out_edges[s], r, 0)
-        if self_edge_counts > 0
-            M_s_col[s] = self_edge_counts
-        end
+    self_edge_counts  = get(M_s_col, s, 0) + get(M.block_out_edges[s], r, 0)
+    if self_edge_counts > 0
+        M_s_col[s] = self_edge_counts
     end
 
-    if r in keys(M.block_in_edges)
-        # Add all incoming edges in r to s
-        for (in_neighbor, edgecount) in M.block_in_edges[r]
-            M_s_row[in_neighbor] = get(M_s_row, in_neighbor, 0) + edgecount
-        end
-        # Add self edges within r to s
-        self_edge_counts = get(M_s_row, s, 0) + get(M.block_in_edges[r], r, 0)
-        if self_edge_counts > 0
-            M_s_row[s] = self_edge_counts
-        end
-
+    # Add all incoming edges in r to s
+    for (in_neighbor, edgecount) in M.block_in_edges[r]
+        M_s_row[in_neighbor] = get(M_s_row, in_neighbor, 0) + edgecount
     end
+    # Add self edges within r to s
+    self_edge_counts = get(M_s_row, s, 0) + get(M.block_in_edges[r], r, 0)
+    if self_edge_counts > 0
+        M_s_row[s] = self_edge_counts
+    end
+
     if r in keys(M_s_row)
         pop!(M_s_row, r) #Set to 0 by popping.
     end
 
     # Add all edges that went from r to s.
-    if s in keys(M.block_in_edges)
-        self_edge_counts = get(M_s_row, s, 0) + get(M.block_in_edges[s], r, 0)
-        if self_edge_counts > 0
-            M_s_row[s] = self_edge_counts
-        end
+    self_edge_counts = get(M_s_row, s, 0) + get(M.block_in_edges[s], r, 0)
+    if self_edge_counts > 0
+        M_s_row[s] = self_edge_counts
     end
 
     return M_r_row, M_r_col, M_s_row, M_s_col
@@ -256,7 +247,7 @@ function compute_overall_entropy(
         B::Int64, N::Int64, E::Int64
     )
     summation_term = 0.0
-    for (out_block, edges) in M.block_out_edges
+    for (out_block, edges) in enumerate(M.block_out_edges)
         for (in_block, edgecount) in edges
             summation_term -= edgecount * log(edgecount/ d_in[in_block] / d_out[out_block])
         end
@@ -278,12 +269,8 @@ function compute_hastings_correction(
     p_backward = 0.0
     for t in blocks
         degree = get(blocks_out_count_map, t, 0) + get(blocks_in_count_map, t, 0)
-        if t in keys(M.block_out_edges)
-            m = get(M.block_out_edges[t], s, 0)
-        end
-        if s in keys(M.block_out_edges)
-            m += get(M.block_out_edges[s], t, 0)
-        end
+        m = get(M.block_out_edges[t], s, 0)
+        m += get(M.block_out_edges[s], t, 0)
         p_forward += degree * (m + 1) / (d[t] + B)
         p_backward += degree * (get(M_r_row, t, 0) + get(M_r_col, t, 0) + 1) / (d_new[t] + B)
     end
@@ -316,7 +303,7 @@ end
 
 function zeros_interblock_edge_matrix(::Type{InterblockEdgeCountVectorDict}, size::Int64)
     return InterblockEdgeCountVectorDict(
-    [Dict{Int64, Int64} for i=1:size],
-    [Dict{Int64, Int64} for i=1:size]
+    [Dict{Int64, Int64}() for i=1:size],
+    [Dict{Int64, Int64}() for i=1:size]
     )
 end
