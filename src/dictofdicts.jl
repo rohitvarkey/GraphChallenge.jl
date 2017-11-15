@@ -329,60 +329,6 @@ function compute_hastings_correction(
     return p_backward / p_forward
 end
 
-function evaluate_proposal_agg(
-    M::InterblockEdgeCountDictDict, r::Int64, s::Int64, num_blocks::Int64,
-    d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
-    k::Int64, k_in::Int64, k_out::Int64
-    )
-    M_r_row, M_r_col, M_s_row, M_s_col =
-        compute_new_matrix_agglomerative(M, r, s, num_blocks)
-    new_degrees = [copy(degrees) for degrees in [d_out, d_in, d]]
-    for (new_d, degree) in zip(new_degrees, [k_out, k_in, k])
-        new_d[r] -= degree
-        new_d[s] += degree
-    end
-    compute_delta_entropy(
-        M, r, s, M_r_col, M_s_col, M_r_row, M_s_row, d_out, d_in,
-        new_degrees[1], new_degrees[2]
-    )
-end
-
-function evaluate_nodal_proposal(
-    M::InterblockEdgeCountDictDict, r::Int64, s::Int64, num_blocks::Int64, β::Int64,
-    d::Vector{Int64}, d_in::Vector{Int64}, d_out::Vector{Int64},
-    k::Int64, k_in::Int64, k_out::Int64, self_edge_weight::Int64,
-    blocks_out_count_map, blocks_in_count_map
-    )
-
-    M_r_row, M_r_col, M_s_row, M_s_col = compute_new_matrix(
-        M, r, s, num_blocks,
-        blocks_out_count_map, blocks_in_count_map,
-        self_edge_weight
-    )
-
-    new_degrees = [copy(degrees) for degrees in [d_out, d_in, d]]
-    for (new_d, degree) in zip(new_degrees, [k_out, k_in, k])
-        new_d[r] -= degree
-        new_d[s] += degree
-    end
-
-    hastings_correction = compute_hastings_correction(
-        s, M, M_r_row, M_r_col, num_blocks, d, new_degrees[3],
-        blocks_out_count_map, blocks_in_count_map
-    )
-
-    Δ = compute_delta_entropy(
-            M, r, s, M_r_col, M_s_col, M_r_row, M_s_row, d_out, d_in,
-            new_degrees[1], new_degrees[2]
-        )
-
-    p_accept = min(exp(-β * Δ) * hastings_correction, 1)
-
-    #println("p_accept: $(p_accept), Δ: $Δ, β: $β, H: $(hastings_correction), exp: $(exp(-β*Δ)*hastings_correction)")
-
-    M_r_row, M_r_col, M_s_row, M_s_col, Δ, p_accept
-end
-
 function update_partition(
     M::InterblockEdgeCountDictDict, r::Int64, s::Int64,
     M_r_col::Dict{Int64, Int64}, M_s_col::Dict{Int64, Int64},
