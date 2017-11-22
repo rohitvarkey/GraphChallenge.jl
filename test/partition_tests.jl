@@ -57,7 +57,8 @@ end
         )
         d_out, d_in, d = compute_block_degrees(M, num_nodes)
         current_block = 1
-        num_blocks = floor(Int64, 0.5 * num_nodes)
+        num_blocks = num_nodes
+        new_num_blocks = floor(Int64, 0.5 * num_nodes)
         block_neighbors, k_out, k_in, k = compute_block_neighbors_and_degrees(
             M, current_block
         )
@@ -70,10 +71,13 @@ end
         srand(42) #Seed the RNG
 
         proposal = propose_new_partition_agg(
-            M, current_block, block_partition, 25,
+            M, current_block, block_partition, num_blocks,
             d, block_neighbors
         )
-        @test proposal == 2
+        @test proposal == 22
+
+        # Results computed with 2 and cross checked with Python implementation.
+        proposal = 2
 
         Δ = evaluate_proposal_agg(
             M, current_block, proposal, num_blocks, d, d_in, d_out,
