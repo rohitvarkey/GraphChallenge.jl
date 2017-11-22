@@ -66,26 +66,28 @@ function compute_new_matrix(
         # Move outgoing edges from r to s.
         if direction != 1
             # out edge
-            out_count = get(out_block_count_map, block, 0)
-            M_r_col[block] = edge.weight - out_count
-            M_s_col[block] = out_count
-            if block == r
-                # Edges in the same block.
-                M_r_row[r] -= out_count # Remove from in count of r.
-                # Add to the in count of edges to r from s
-                M_r_row[s] += out_count
-            elseif block == s
-                # Edges from r to s.
-                M_s_row[r] -= out_count
-                # Add as self edges
-                M_s_row[s] += out_count
+            if block in keys(out_block_count_map)
+                out_count = out_block_count_map[block]
+                M_r_col[block] = edge.weight - out_count
+                M_s_col[block] += out_count
+                if block == r
+                    # Edges in the same block.
+                    M_r_row[r] -= out_count # Remove from in count of r.
+                    # Add to the in count of edges to r from s
+                    M_r_row[s] += out_count
+                elseif block == s
+                    # Edges from r to s.
+                    M_s_row[r] -= out_count
+                    # Add as self edges
+                    M_s_row[s] += out_count
+                end
             end
         end
         if direction != 2
             # in edge
             in_count = get(in_block_count_map, block, 0)
-            M_r_row[block] = edge.weight - in_count
-            M_s_row[block] = in_count
+            M_r_row[block] += edgeweight(M, block, r, 0) - in_count
+            M_s_row[block] += in_count
             if block == r
                 M_r_col[r] -= in_count
                 M_r_col[s] += in_count

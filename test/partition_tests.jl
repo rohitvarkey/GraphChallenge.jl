@@ -2,6 +2,7 @@ import GraphChallenge: compute_block_neighbors_and_degrees,
                        propose_new_partition_agg,
                        evaluate_proposal_agg,
                        compute_new_matrix_agglomerative,
+                       compute_new_matrix,
                        compute_delta_entropy,
                        carry_out_best_merges
 
@@ -110,6 +111,11 @@ end
     test_carry_out_best_merges()
 end
 
+@testset "Nodal step" begin
+    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict, Stinger)
+        test_compute_new_matrix(T)
+    end
+end
 
 function test_matrix_update_agglomerative()
     M_r_row, M_r_col, M_s_row, M_s_col =
