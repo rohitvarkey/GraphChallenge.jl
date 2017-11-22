@@ -262,25 +262,36 @@ function compute_overall_entropy(
     return S
 end
 
-#=
+
 function compute_hastings_correction(
-        s::Int64, M::InterblockEdgeCountVectorDict, M_r_row::Dict{Int64, Int64},
-        M_r_col::Dict{Int64, Int64}, B::Int64, d::Vector{Int64}, d_new::Vector{Int64},
+        s::Int64, M::Stinger, M_r_row::Dict{Int64, Int64},
+        M_r_col::Dict{Int64, Int64}, B::Int64, d::Vector{Int64},
+        d_new::Vector{Int64},
         blocks_out_count_map, blocks_in_count_map
     )
     blocks = Set(keys(blocks_out_count_map)) ∪ Set(keys(blocks_in_count_map))
     p_forward = 0.0
     p_backward = 0.0
-    for t in blocks
-        degree = get(blocks_out_count_map, t, 0) + get(blocks_in_count_map, t, 0)
-        m = get(M.block_out_edges[t], s, 0)
-        m += get(M.block_out_edges[s], t, 0)
-        p_forward += degree * (m + 1) / (d[t] + B)
-        p_backward += degree * (get(M_r_row, t, 0) + get(M_r_col, t, 0) + 1) / (d_new[t] + B)
+    foralledges(M, s) do edge, src, etype
+        direction, t = edgeparse(edge)
+        if t in blocks
+            degree = get(blocks_out_count_map, t, 0) +
+                get(blocks_in_count_map, t, 0)
+            m = 0.0
+            if direction != 1
+                m += edge.weight
+            end
+            if direction != 2
+                m += edgeweight(M, t, s, 0)
+            end
+            p_forward += degree * (m + 1) / (d[t] + B)
+            p_backward += degree * (get(M_r_row, t, 0) + get(M_r_col, t, 0) + 1) / (d_new[t] + B)
+        end
     end
     return p_backward / p_forward
 end
 
+#=
 function update_partition(
     M::InterblockEdgeCountVectorDict, r::Int64, s::Int64,
     M_r_col::Dict{Int64, Int64}, M_s_col::Dict{Int64, Int64},
