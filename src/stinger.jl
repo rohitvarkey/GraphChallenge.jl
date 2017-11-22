@@ -141,7 +141,7 @@ function compute_new_matrix_agglomerative(
             end
         end
         if direction != 2
-            @show M_s_row[block] += edgeweight(M, block, s, 0)
+            M_s_row[block] += edgeweight(M, block, s, 0)
         end
     end
 
@@ -172,64 +172,69 @@ function compute_new_matrix_agglomerative(
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
 
-#=
+
 function compute_multinomial_probs(
-    M::InterblockEdgeCountVectorDict,  degrees::Vector{Int64}, block::Int64
+    M::Stinger, degrees::Vector{Int64}, block::Int64
     )
     probabilities = zeros(length(degrees))
-    for (out_neighbor, edgecount) in M.block_out_edges[block]
-        probabilities[out_neighbor] += edgecount/degrees[block]
-    end
-    for (in_neighbor, edgecount) in M.block_in_edges[block]
-        probabilities[in_neighbor] += edgecount/degrees[block]
+    foralledges(M, block) do edge, src, etype
+        direction, block = edgeparse(edge)
+        if direction != 1
+            # out edge
+            probabilities[neighbor] += edge.weight
+        end
+        if direction != 2
+            # in edge
+            probabilities[neighbor] += edgeweight(M, neighbor, block, 0)
+        end
     end
     return probabilities
 end
 
 function compute_delta_entropy(
-    M::InterblockEdgeCountVectorDict, r::Int64, s::Int64,
-    M_r_col::Dict{Int64, Int64}, M_s_col::Dict{Int64, Int64},
-    M_r_row::Dict{Int64, Int64}, M_s_row::Dict{Int64, Int64},
+    M::Stinger, r::Int64, s::Int64,
+    M_r_col::Array{Int64, 1}, M_s_col::Array{Int64, 1},
+    M_r_row::Array{Int64, 1}, M_s_row::Array{Int64, 1},
     d_out::Vector{Int64}, d_in::Vector{Int64},
     d_out_new::Vector{Int64}, d_in_new::Vector{Int64}
     )
     delta = 0.0
     # Sum over col of r in new M
-    for (t1, edgecount) in M_r_col
+    for t1 in findn(M_r_col)
         # Skip if t1 is r or s to prevent double counting
         if t1 ∈ (r, s)
             continue
         end
-        delta -= edgecount * log(edgecount / d_in_new[t1] / d_out_new[r])
+        delta -= M_r_col[t1] * log(M_r_col[t1] / d_in_new[t1] / d_out_new[r])
     end
-    for (t1, edgecount) in M_s_col
+    for t1 in findn(M_s_col)
         if t1 ∈ (r, s)
             continue
         end
-        delta -= edgecount * log(edgecount / d_in_new[t1] / d_out_new[s])
+        delta -= M_s_col[t1] * log(M_s_col[t1] / d_in_new[t1] / d_out_new[s])
     end
     # Sum over row of r in new M
-    for (t2, edgecount) in M_r_row
-        delta -= edgecount * log(edgecount / d_in_new[r] / d_out_new[t2])
+    for t2 in findn(M_r_row)
+        delta -= M_r_row[t2] * log(M_r_row[t2] / d_in_new[r] / d_out_new[t2])
     end
     # Sum over row of s in new M
-    for (t2, edgecount) in M_s_row
-        delta -= edgecount * log(edgecount / d_in_new[s] / d_out_new[t2])
+    for t2 in findn(M_s_row)
+        delta -= M_s_row[t2] * log(M_s_row[t2] / d_in_new[s] / d_out_new[t2])
     end
-    # Sum over columns in old M
-    for t2 in (r, s)
-        for (t1, edgecount) in get(M.block_out_edges, t2, Dict{Int64, Int64}())
-            # Skip if t1 is r or s to prevent double counting
-            if t1 ∈ (r, s)
-                continue
+    # Sum over edges in old M
+    for block in (r, s)
+        foralledges(M, block) do edge, src, etype
+            direction, neighbor = edgeparse(edge)
+            if direction != 1
+                # edge is block -> neighbor
+                delta += edge.weight * log(edge.weight / d_in[neighbor] / d_out[block])
             end
-            delta += edgecount * log(edgecount / d_in[t1] / d_out[t2])
-        end
-    end
-    # Sum over rows in old M
-    for t1 in (r, s)
-        for (t2, edgecount) in get(M.block_in_edges, t1, Dict{Int64, Int64}())
-            delta += edgecount * log(edgecount / d_in[t1] / d_out[t2])
+            # Prevent double counting the r->s, s->r edges.
+            if direction != 2 && !((block, neighbor) == (r, s) || (block, neighbor) == (s, r))
+                # edge is neighbor -> block
+                edgecount = edgeweight(M, neighbor, block, 0)
+                delta += edgecount * log(edgecount / d_in[block] / d_out[neighbor])
+            end
         end
     end
     #println("Delta: $delta")
@@ -237,13 +242,17 @@ function compute_delta_entropy(
 end
 
 function compute_overall_entropy(
-        M::InterblockEdgeCountVectorDict, d_out::Vector{Int64}, d_in::Vector{Int64},
+        M::Stinger, d_out::Vector{Int64}, d_in::Vector{Int64},
         B::Int64, N::Int64, E::Int64
     )
     summation_term = 0.0
-    for (out_block, edges) in enumerate(M.block_out_edges)
-        for (in_block, edgecount) in edges
-            summation_term -= edgecount * log(edgecount/ d_in[in_block] / d_out[out_block])
+    for block=1:B
+        foralledges(M, B) do edge, src, etype
+            direction, neighbor = edgeparse(edge)
+            if direction != 1
+                edgecount = edge.weight
+                summation_term -= edgecount * log(edgecount/ d_in[neighbor] / d_out[block])
+            end
         end
     end
     model_S_term = B^2 / E
@@ -253,6 +262,7 @@ function compute_overall_entropy(
     return S
 end
 
+#=
 function compute_hastings_correction(
         s::Int64, M::InterblockEdgeCountVectorDict, M_r_row::Dict{Int64, Int64},
         M_r_col::Dict{Int64, Int64}, B::Int64, d::Vector{Int64}, d_new::Vector{Int64},
