@@ -131,21 +131,19 @@ function compute_new_matrix_agglomerative(
 
     foralledges(M, s) do edge, src, etype
         direction, block = edgeparse(edge)
-        @show direction, block
         if direction != 1
             # out edges
             M_s_col[block] += edge.weight
             if block == r
                 # s->r edge
                 M_s_row[s] += edge.weight
+                M_s_col[s] += edge.weight
             end
         end
         if direction != 2
-            M_s_row[block] += edgeweight(M, block, s, 0)
+            @show M_s_row[block] += edgeweight(M, block, s, 0)
         end
     end
-
-    @show M_s_col, M_s_row
 
     foralledges(M, r) do edge, src, etype
         direction, block = edgeparse(edge)
@@ -156,9 +154,13 @@ function compute_new_matrix_agglomerative(
             if block == r || block == s
                 # r->r self edge and r->s edge
                 M_s_row[s] += edge.weight
+                if block == r
+                    M_s_col[s] += edge.weight
+                end
             end
         end
-        if direction != 2
+        # Avoid double counting s->r.
+        if direction != 2 && block != s
             # in edge
             M_s_row[block] += edgeweight(M, block, r, 0)
         end
