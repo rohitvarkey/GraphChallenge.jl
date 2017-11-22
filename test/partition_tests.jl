@@ -5,18 +5,20 @@ import GraphChallenge: compute_block_neighbors_and_degrees,
                        compute_delta_entropy,
                        carry_out_best_merges
 
+import StingerGraphs: Stinger
+
 function test_compute_block_degrees(M, g::SimpleWeightedDiGraph, num_nodes::Int64)
     d_out, d_in, d = compute_block_degrees(M, num_nodes)
     for v in vertices(g)
-        @test outdegree(g, v) == d_out[v]
-        @test indegree(g, v) == d_in[v]
-        @test degree(g, v) == d[v]
+        @test LightGraphs.outdegree(g, v) == d_out[v]
+        @test LightGraphs.indegree(g, v) == d_in[v]
+        @test LightGraphs.degree(g, v) == d[v]
     end
 end
 
 
 @testset "Initialization" begin
-    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict)
+    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict, Stinger)
         num_nodes = 50
         g = load_graph(50)
         M = initialize_edge_counts(
@@ -45,7 +47,7 @@ function test_carry_out_best_merges()
 end
 
 @testset "Agglomerative step" begin
-    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict)
+    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict, Stinger)
         test_compute_new_matrix_agglomerative(T)
         num_nodes = 50
         g = load_graph(50)
@@ -61,9 +63,9 @@ end
         )
 
         @test Set(all_neighbors(g, current_block)) == Set(block_neighbors)
-        @test k_out == outdegree(g, current_block)
-        @test k_in == indegree(g, current_block)
-        @test k == degree(g, current_block)
+        @test k_out == LightGraphs.outdegree(g, current_block)
+        @test k_in == LightGraphs.indegree(g, current_block)
+        @test k == LightGraphs.degree(g, current_block)
 
         srand(42) #Seed the RNG
 
