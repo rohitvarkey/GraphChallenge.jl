@@ -331,7 +331,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                     )
 
                     k_in = length(in_n)
-                    k_out = outdegree(g, current_node)
+                    k_out = LightGraphs.outdegree(g, current_node)
 
                     M_r_row, M_r_col, M_s_row, M_s_col, Δ, p_accept =
                     evaluate_nodal_proposal(

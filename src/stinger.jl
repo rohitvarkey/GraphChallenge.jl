@@ -9,9 +9,13 @@ function initialize_edge_counts!(
     b::Vector{Int64}
     )
     #TODO: Optimize this by using batch insertions.
+    edge_counts = Dict{Pair{Int64, Int64}, Int64}()
     for edge in edges(g)
         s, d = b[src(edge)], b[dst(edge)]
-        insert_edge!(M, 0, s, d, 1, 1)
+        edge_counts[(s=>d)] = get(edge_counts, s=>d, 0) + 1
+    end
+    for ((s, d), edgecount) in edge_counts
+        insert_edge!(M, 0, s, d, edgecount, 1)
     end
     M
 end
@@ -180,7 +184,7 @@ function compute_multinomial_probs(
     )
     probabilities = zeros(length(degrees))
     foralledges(M, block) do edge, src, etype
-        direction, block = edgeparse(edge)
+        direction, neighbor = edgeparse(edge)
         if direction != 1
             # out edge
             probabilities[neighbor] += edge.weight
@@ -266,8 +270,8 @@ end
 
 
 function compute_hastings_correction(
-        s::Int64, M::Stinger, M_r_row::Dict{Int64, Int64},
-        M_r_col::Dict{Int64, Int64}, B::Int64, d::Vector{Int64},
+        s::Int64, M::Stinger, M_r_row::Vector{Int64},
+        M_r_col::Vector{Int64}, B::Int64, d::Vector{Int64},
         d_new::Vector{Int64},
         blocks_out_count_map, blocks_in_count_map
     )
