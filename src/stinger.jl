@@ -297,31 +297,50 @@ function compute_hastings_correction(
     return p_backward / p_forward
 end
 
-#=
 function update_partition(
-    M::InterblockEdgeCountVectorDict, r::Int64, s::Int64,
-    M_r_col::Dict{Int64, Int64}, M_s_col::Dict{Int64, Int64},
-    M_r_row::Dict{Int64, Int64}, M_s_row::Dict{Int64, Int64}
+    M::Stinger, r::Int64, s::Int64,
+    M_r_col::Vector{Int64}, M_s_col::Vector{Int64},
+    M_r_row::Vector{Int64}, M_s_row::Vector{Int64}
     )
-    M.block_out_edges[r] = M_r_col
-    M.block_in_edges[r] = M_r_row
-    M.block_out_edges[s] = M_s_col
-    M.block_in_edges[s] = M_s_row
-    for (out_block, edgecount) in M_r_col
-        M.block_in_edges[out_block][r] = edgecount
+    println("Updating partition for $r, $s")
+    foralledges(M, r) do edge, src, etype
+        direction, neighbor = edgeparse(edge)
+        if direction != 1 && M_r_col[neighbor] == 0
+            insert_edge!(M, 0, r, neighbor, 0, 1)
+        end
+        if direction != 2 && M_r_row[neighbor] == 0
+            insert_edge!(M, 0, neighbor, r, 0, 1)
+        end
     end
-    for (out_block, edgecount) in M_s_col
-        M.block_in_edges[out_block][s] = edgecount
+    for idx in findn(M_r_col)
+        @show M_r_col[idx]
+        insert_edge!(M, 0, r, idx, M_r_col[idx], 1)
     end
-    for (in_block, edgecount) in M_r_row
-        M.block_out_edges[in_block][r] = edgecount
+    for idx in findn(M_r_row)
+        @show M_r_row[idx]
+        insert_edge!(M, 0, idx, r, M_r_row[idx], 1)
     end
-    for (in_block, edgecount) in M_s_row
-        M.block_out_edges[in_block][s] = edgecount
+    foralledges(M, s) do edge, src, etype
+        direction, neighbor = edgeparse(edge)
+        if direction != 1 && M_s_col[neighbor] == 0
+            insert_edge!(M, 0, s, neighbor, 0, 1)
+        end
+        if direction != 2 && M_s_row[neighbor] == 0
+            insert_edge!(M, 0, neighbor, s, 0, 1)
+        end
     end
+    for idx in findn(M_s_col)
+        @show s, idx, M_s_col[idx]
+        insert_edge!(M, 0, s, idx, M_s_col[idx], 1)
+    end
+    for idx in findn(M_s_row)
+        @show idx, s, M_s_row[idx]
+        insert_edge!(M, 0, idx, s, M_s_row[idx], 1)
+    end
+    println("Updated partition")
     M
 end
-=#
+
 function zeros_interblock_edge_matrix(::Type{Stinger}, size::Int64)
     return Stinger(stingerconfig(0))
 end
