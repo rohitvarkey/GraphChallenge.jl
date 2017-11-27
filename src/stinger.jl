@@ -65,14 +65,19 @@ function compute_new_matrix(
     M_s_col = zeros(Int64, num_blocks)
     M_s_row = zeros(Int64, num_blocks)
 
+    @show r, s
+    @show out_block_count_map
+    @show in_block_count_map
     foralledges(M, r) do edge, src, etype
         direction, block = edgeparse(edge)
         # Move outgoing edges from r to s.
+        M_r_col[block] = edge.weight
         if direction != 1
             # out edge
             if block in keys(out_block_count_map)
+                @show r, block, edge.weight, out_block_count_map[block]
                 out_count = out_block_count_map[block]
-                M_r_col[block] = edge.weight - out_count
+                M_r_col[block] -= out_count
                 M_s_col[block] += out_count
                 if block == r
                     # Edges in the same block.
@@ -89,19 +94,24 @@ function compute_new_matrix(
         end
         if direction != 2
             # in edge
-            in_count = get(in_block_count_map, block, 0)
-            M_r_row[block] += edgeweight(M, block, r, 0) - in_count
-            M_s_row[block] += in_count
-            if block == r
-                M_r_col[r] -= in_count
-                M_r_col[s] += in_count
-            elseif block == s
-                M_s_col[r] -= in_count
-                M_s_col[s] += in_count
+            M_r_row[block] = edgeweight(M, block, r, 0)
+            if block in keys(in_block_count_map)
+                in_count = get(in_block_count_map, block, 0)
+                @show r, block, edgeweight(M, block, r, 0), in_count
+                M_r_row[block] -= in_count
+                M_s_row[block] += in_count
+                if block == r
+                    M_r_col[r] -= in_count
+                    M_r_col[s] += in_count
+                elseif block == s
+                    M_s_col[r] -= in_count
+                    M_s_col[s] += in_count
+                end
             end
         end
     end
 
+    @show M_r_row, M_r_col, M_s_row, M_s_col
     foralledges(M, s) do edge, src, etype
         direction, block = edgeparse(edge)
         if direction != 1
@@ -111,6 +121,7 @@ function compute_new_matrix(
             M_s_row[block] += edgeweight(M, block, s, 0)
         end
     end
+    @show M_r_row, M_r_col, M_s_row, M_s_col
 
 
     if self_edge_weight > 0
@@ -120,6 +131,8 @@ function compute_new_matrix(
         M_s_col[r] -= self_edge_weight
         M_s_col[s] += self_edge_weight
     end
+
+    @show M_r_row, M_r_col, M_s_row, M_s_col
 
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
@@ -305,6 +318,7 @@ function update_partition(
     println("Updating partition for $r, $s")
     foralledges(M, r) do edge, src, etype
         direction, neighbor = edgeparse(edge)
+        @show direction, neighbor, edge.weight, edgeweight(M, 0, neighbor, r)
         if direction != 1 && M_r_col[neighbor] == 0
             insert_edge!(M, 0, r, neighbor, 0, 1)
         end
@@ -312,30 +326,32 @@ function update_partition(
             insert_edge!(M, 0, neighbor, r, 0, 1)
         end
     end
-    for idx in findn(M_r_col)
-        @show M_r_col[idx]
-        insert_edge!(M, 0, r, idx, M_r_col[idx], 1)
-    end
-    for idx in findn(M_r_row)
-        @show M_r_row[idx]
-        insert_edge!(M, 0, idx, r, M_r_row[idx], 1)
-    end
     foralledges(M, s) do edge, src, etype
         direction, neighbor = edgeparse(edge)
         if direction != 1 && M_s_col[neighbor] == 0
             insert_edge!(M, 0, s, neighbor, 0, 1)
+            println("Should be 0: $(edgeweight(M, s, neighbor, 0))")
         end
         if direction != 2 && M_s_row[neighbor] == 0
             insert_edge!(M, 0, neighbor, s, 0, 1)
+            println("Should be 0: $(edgeweight(M, neighbor, s, 0))")
         end
     end
+    for idx in findn(M_r_col)
+        insert_edge!(M, 0, r, idx, M_r_col[idx], 1)
+        @show idx, r, M_r_col[idx], edgeweight(M, r, idx, 0)
+    end
+    for idx in findn(M_r_row)
+        insert_edge!(M, 0, idx, r, M_r_row[idx], 1)
+        @show idx, r, M_r_row[idx], edgeweight(M, idx, r, 0)
+    end
     for idx in findn(M_s_col)
-        @show s, idx, M_s_col[idx]
         insert_edge!(M, 0, s, idx, M_s_col[idx], 1)
+        @show s, idx, M_s_col[idx], edgeweight(M, s, idx, 0)
     end
     for idx in findn(M_s_row)
-        @show idx, s, M_s_row[idx]
         insert_edge!(M, 0, idx, s, M_s_row[idx], 1)
+        @show s, idx, M_s_row[idx], edgeweight(M, idx, s, 0)
     end
     println("Updated partition")
     M
