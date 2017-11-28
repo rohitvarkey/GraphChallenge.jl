@@ -23,13 +23,26 @@ function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountStinger
     M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3), zeros(3), zeros(3))
     for (src_block, edges) in block_out_edges
         for (dst_block, edgecount) in edges
-            insert_edge!(M.s, 0, src_block, dst_block, edgecount, 1)
+            if src_block != dst_block
+                insert_edge!(M.s, 0, src_block, dst_block, edgecount, 1)
+            end
         end
     end
 
+    for (block, out_edges) in  block_out_edges
+        M.outdegrees[block] = sum(values(out_edges))
+    end
+    for (block, in_edges) in  block_in_edges
+        M.indegrees[block] = sum(values(in_edges))
+    end
+
+    for i=1:3
+        M.self_edge_counts[i] = block_out_edges[i][i]
+    end
+    @show M
     r = 1
     s = 2
-    M_r_row, M_r_col, M_s_row, M_s_col =
+    @show M_r_row, M_r_col, M_s_row, M_s_col =
         compute_new_matrix_agglomerative(M, r, s, 3)
     @test M_r_row == [0, 0, 0]
     @test M_r_col == [0, 0, 0]
@@ -51,10 +64,23 @@ function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
     M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3), zeros(3), zeros(3))
     for (src_block, edges) in block_out_edges
         for (dst_block, edgecount) in edges
-            insert_edge!(M.s, 0, src_block, dst_block, edgecount, 1)
+            if src_block != dst_block
+                insert_edge!(M.s, 0, src_block, dst_block, edgecount, 1)
+            end
         end
     end
 
+    for (block, out_edges) in  block_out_edges
+        M.outdegrees[block] = sum(values(out_edges))
+    end
+    for (block, in_edges) in  block_in_edges
+        M.indegrees[block] = sum(values(in_edges))
+    end
+
+    for i=1:3
+        M.self_edge_counts[i] = block_out_edges[i][i]
+    end
+    @show M
     r = 1
     s = 2
     block_out_count_map = Dict(

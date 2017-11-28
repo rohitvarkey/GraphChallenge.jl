@@ -50,14 +50,19 @@ function compute_block_neighbors_and_degrees(M::InterblockEdgeCountStinger, bloc
     neighbors = Set{Int64}()
     k_in = M.self_edge_counts[block]
     k_out = M.self_edge_counts[block]
+    if M.self_edge_counts[block] > 0
+        push!(neighbor, block)
+    end
     foralledges(M.s, block) do edge, src, etype
         direction, neighbor = edgeparse(edge)
-        push!(neighbors, neighbor)
-        if direction != 1
-            k_out += edge.weight
-        end
-        if direction != 2
-            k_in += edgeweight(M.s, neighbor, block, 0)
+        if direction != -1
+            push!(neighbors, neighbor)
+            if direction != 1
+                k_out += edge.weight
+            end
+            if direction != 2
+                k_in += edgeweight(M.s, neighbor, block, 0)
+            end
         end
     end
     collect(neighbors), k_out, k_in, k_in + k_out
@@ -174,6 +179,9 @@ function compute_new_matrix_agglomerative(
     M_s_col = zeros(Int64, num_blocks)
     M_s_row = zeros(Int64, num_blocks)
 
+    M_s_col[s] = M.self_edge_counts[s] + M.self_edge_counts[r]
+    M_s_row[s] = M.self_edge_counts[s] + M.self_edge_counts[r]
+
     foralledges(M.s, s) do edge, src, etype
         direction, block = edgeparse(edge)
         if direction != -1 && direction != 1
@@ -233,6 +241,7 @@ function compute_multinomial_probs(
             probabilities[neighbor] += edgeweight(M.s, neighbor, block, 0)
         end
     end
+    probabilities[block] += M.self_edge_counts[block]
     return probabilities
 end
 
@@ -288,7 +297,13 @@ function compute_delta_entropy(
             end
         end
     end
-    #println("Delta: $delta")
+    #println("Delta: $delta
+    if M.self_edge_counts[s] > 0
+        delta += M.self_edge_counts[s] * log(M.self_edge_counts[s] / d_in[s] / d_out[s])
+    end
+    if M.self_edge_counts[r] > 0
+        delta += M.self_edge_counts[r] * log(M.self_edge_counts[r] / d_in[r] / d_out[r])
+    end
     delta
 end
 
@@ -306,6 +321,7 @@ function compute_overall_entropy(
             end
         end
     end
+    summation_term += sum(M.self_edge_counts)
     model_S_term = B^2 / E
     model_S = E * (1 + model_S_term) * log(1 + model_S_term) -
         model_S_term * log(model_S_term) + N*log(B)
@@ -339,6 +355,10 @@ function compute_hastings_correction(
             p_backward += degree * (get(M_r_row, t, 0) + get(M_r_col, t, 0) + 1) / (d_new[t] + B)
         end
     end
+    degree = get(blocks_out_count_map, s, 0) +
+        get(blocks_in_count_map, s, 0)
+    p_forward += degree * (M.self_edge_counts[s] + 1) / (d[s] + B)
+    p_backward += degree * (get(M_r_row, s, 0) + get(M_r_col, s, 0) + 1) / (d_new[s] + B)
     return p_backward / p_forward
 end
 
