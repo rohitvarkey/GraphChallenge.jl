@@ -7,7 +7,8 @@ using StatsBase
 
 export load_graph!, load_graph, initialize_edge_counts, compute_block_degrees,
        partition, evaluate_partition, plotbeliefs, static_partition_experiment,
-       InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict
+       InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict,
+       InterblockEdgeCountStinger
 
 # package code goes here
 const INPUT_PATH = joinpath(dirname(dirname(@__FILE__)), "data")

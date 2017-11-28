@@ -19,7 +19,8 @@ end
 
 
 @testset "Initialization" begin
-    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict, Stinger)
+    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict,
+        InterblockEdgeCountVectorDict, InterblockEdgeCountStinger)
         num_nodes = 50
         g = load_graph(50)
         M = initialize_edge_counts(
@@ -48,7 +49,8 @@ function test_carry_out_best_merges()
 end
 
 @testset "Agglomerative step" begin
-    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict, Stinger)
+    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict,
+        InterblockEdgeCountVectorDict, InterblockEdgeCountStinger)
         test_compute_new_matrix_agglomerative(T)
         num_nodes = 50
         g = load_graph(50)
@@ -112,7 +114,8 @@ end
 end
 
 @testset "Nodal step" begin
-    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict, Stinger)
+    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict,
+        InterblockEdgeCountVectorDict, InterblockEdgeCountStinger)
         test_compute_new_matrix(T)
     end
 end

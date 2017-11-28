@@ -3,13 +3,13 @@ using SimpleWeightedGraphs
 using StingerGraphs
 using GraphChallenge
 
-function test_initialize_counts(M::Stinger, g::SimpleWeightedDiGraph)
+function test_initialize_counts(M::InterblockEdgeCountStinger, g::SimpleWeightedDiGraph)
     for edge in edges(g)
-        @test edgeweight(M, src(edge), dst(edge), 0) == 1
+        @test edgeweight(M.s, src(edge), dst(edge), 0) == 1
     end
 end
 
-function test_compute_new_matrix_agglomerative(::Type{Stinger})
+function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountStinger})
     block_out_edges = Dict(
         1 => Dict(1=>8, 2=>2, 3=>4),
         2 => Dict(1=>3, 2=>9, 3=>12),
@@ -20,10 +20,10 @@ function test_compute_new_matrix_agglomerative(::Type{Stinger})
         2 => Dict(1=>2, 2=>9, 3=>6),
         3 => Dict(1=>5, 2=>12, 3=>10)
     )
-    M = Stinger(stingerconfig(4))
+    M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3))
     for (src_block, edges) in block_out_edges
         for (dst_block, edgecount) in edges
-            insert_edge!(M, 0, src_block, dst_block, edgecount, 1)
+            insert_edge!(M.s, 0, src_block, dst_block, edgecount, 1)
         end
     end
 
@@ -37,7 +37,7 @@ function test_compute_new_matrix_agglomerative(::Type{Stinger})
     @test M_s_col == [0, 22, 16]
 end
 
-function test_compute_new_matrix(::Type{Stinger})
+function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
     block_out_edges = Dict(
         1 => Dict(1=>8, 2=>2, 3=>4),
         2 => Dict(1=>3, 2=>9, 3=>12),
@@ -48,10 +48,10 @@ function test_compute_new_matrix(::Type{Stinger})
         2 => Dict(1=>2, 2=>9, 3=>6),
         3 => Dict(1=>5, 2=>12, 3=>10)
     )
-    M = Stinger(stingerconfig(4))
+    M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3))
     for (src_block, edges) in block_out_edges
         for (dst_block, edgecount) in edges
-            insert_edge!(M, 0, src_block, dst_block, edgecount, 1)
+            insert_edge!(M.s, 0, src_block, dst_block, edgecount, 1)
         end
     end
 
