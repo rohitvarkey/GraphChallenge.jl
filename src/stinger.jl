@@ -51,7 +51,7 @@ function compute_block_neighbors_and_degrees(M::InterblockEdgeCountStinger, bloc
     k_in = M.self_edge_counts[block]
     k_out = M.self_edge_counts[block]
     if M.self_edge_counts[block] > 0
-        push!(neighbor, block)
+        push!(neighbors, block)
     end
     foralledges(M.s, block) do edge, src, etype
         direction, neighbor = edgeparse(edge)
@@ -90,7 +90,7 @@ function compute_new_matrix(
     M_r_col[r] = M.self_edge_counts[r]
     M_r_row[r] = M.self_edge_counts[r]
     M_s_col[s] = M.self_edge_counts[s]
-    M_s_col[s] = M.self_edge_counts[s]
+    M_s_row[s] = M.self_edge_counts[s]
 
     #@show r, s
     #@show out_block_count_map
@@ -107,12 +107,7 @@ function compute_new_matrix(
                     out_count = out_block_count_map[block]
                     M_r_col[block] -= out_count
                     M_s_col[block] += out_count
-                    if block == r
-                        # Edges in the same block.
-                        M_r_row[r] -= out_count # Remove from in count of r.
-                        # Add to the in count of edges to r from s
-                        M_r_row[s] += out_count
-                    elseif block == s
+                    if block == s
                         # Edges from r to s.
                         M_s_row[r] -= out_count
                         # Add as self edges
@@ -124,20 +119,36 @@ function compute_new_matrix(
                 # in edge
                 M_r_row[block] += edgeweight(M.s, block, r, 0)
                 if block in keys(in_block_count_map)
-                    in_count = get(in_block_count_map, block, 0)
+                    in_count = in_block_count_map[block]
                     #@show r, block, edgeweight(M.s, block, r, 0), in_count
                     M_r_row[block] -= in_count
                     M_s_row[block] += in_count
-                    if block == r
-                        M_r_col[r] -= in_count
-                        M_r_col[s] += in_count
-                    elseif block == s
+                    if block == s
                         M_s_col[r] -= in_count
                         M_s_col[s] += in_count
                     end
                 end
             end
         end
+    end
+
+    if r in keys(out_block_count_map)
+        out_count = out_block_count_map[r]
+        M_r_col[r] -= out_count
+        M_s_col[r] += out_count
+        # Edges in the same block.
+        M_r_row[r] -= out_count # Remove from in count of r.
+        # Add to the in count of edges to r from s
+        M_r_row[s] += out_count
+    end
+
+    if r in keys(in_block_count_map)
+        in_count = in_block_count_map[r]
+        #@show r, block, edgeweight(M.s, block, r, 0), in_count
+        M_r_row[r] -= in_count
+        M_s_row[r] += in_count
+        M_r_col[r] -= in_count
+        M_r_col[s] += in_count
     end
 
     #@show M_r_row, M_r_col, M_s_row, M_s_col
