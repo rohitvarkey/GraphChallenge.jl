@@ -87,7 +87,7 @@ function compute_new_matrix(
     M_s_col[s] = M.self_edge_counts[s]
     M_s_col[s] = M.self_edge_counts[s]
 
-    @show r, s
+    #@show r, s
     #@show out_block_count_map
     #@show in_block_count_map
     foralledges(M.s, r) do edge, src, etype
@@ -135,7 +135,7 @@ function compute_new_matrix(
         end
     end
 
-    @show M_r_row, M_r_col, M_s_row, M_s_col
+    #@show M_r_row, M_r_col, M_s_row, M_s_col
     foralledges(M.s, s) do edge, src, etype
         direction, block = edgeparse(edge)
         if direction != -1 && direction != 1
@@ -145,7 +145,7 @@ function compute_new_matrix(
             M_s_row[block] += edgeweight(M.s, block, s, 0)
         end
     end
-    @show M_r_row, M_r_col, M_s_row, M_s_col
+    #@show M_r_row, M_r_col, M_s_row, M_s_col
 
 
     if self_edge_weight > 0
@@ -156,7 +156,7 @@ function compute_new_matrix(
         M_s_col[s] += self_edge_weight
     end
 
-    @show M_r_row, M_r_col, M_s_row, M_s_col
+    #@show M_r_row, M_r_col, M_s_row, M_s_col
     if any(any.(map.(x->x < 0, [M_r_row, M_r_col, M_s_row, M_s_col])))
         @show any.(map.(x->x < 0, [M_r_row, M_r_col, M_s_row, M_s_col]))
     end

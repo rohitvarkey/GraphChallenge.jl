@@ -20,7 +20,7 @@ function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountStinger
         2 => Dict(1=>2, 2=>9, 3=>6),
         3 => Dict(1=>5, 2=>12, 3=>10)
     )
-    M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3))
+    M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3), zeros(3), zeros(3))
     for (src_block, edges) in block_out_edges
         for (dst_block, edgecount) in edges
             insert_edge!(M.s, 0, src_block, dst_block, edgecount, 1)
@@ -48,7 +48,7 @@ function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
         2 => Dict(1=>2, 2=>9, 3=>6),
         3 => Dict(1=>5, 2=>12, 3=>10)
     )
-    M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3))
+    M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3), zeros(3), zeros(3))
     for (src_block, edges) in block_out_edges
         for (dst_block, edgecount) in edges
             insert_edge!(M.s, 0, src_block, dst_block, edgecount, 1)
