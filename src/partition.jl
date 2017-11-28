@@ -215,6 +215,8 @@ function evaluate_nodal_proposal{T}(
         new_d[s] += degree
     end
 
+    @show d_out, d_in, d, k_out, k_in, k, new_degrees
+
     hastings_correction = compute_hastings_correction(
         s, M, M_r_row, M_r_col, num_blocks, d, new_degrees[3],
         blocks_out_count_map, blocks_in_count_map

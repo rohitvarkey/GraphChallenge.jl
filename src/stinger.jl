@@ -1,4 +1,4 @@
-import StingerGraphs: Stinger, insert_edge!, indegree, outdegree, foralledges, edgeparse, stingerconfig, edgeweight
+import StingerGraphs: Stinger, remove_edge!, insert_edge!, indegree, outdegree, foralledges, edgeparse, stingerconfig, edgeweight
 
 """
 Initializes the edge count matrix M between the blocks.
@@ -66,46 +66,48 @@ function compute_new_matrix(
     M_s_row = zeros(Int64, num_blocks)
 
     @show r, s
-    @show out_block_count_map
-    @show in_block_count_map
+    #@show out_block_count_map
+    #@show in_block_count_map
     foralledges(M, r) do edge, src, etype
         direction, block = edgeparse(edge)
         # Move outgoing edges from r to s.
-        M_r_col[block] = edge.weight
-        if direction != 1
-            # out edge
-            if block in keys(out_block_count_map)
-                @show r, block, edge.weight, out_block_count_map[block]
-                out_count = out_block_count_map[block]
-                M_r_col[block] -= out_count
-                M_s_col[block] += out_count
-                if block == r
-                    # Edges in the same block.
-                    M_r_row[r] -= out_count # Remove from in count of r.
-                    # Add to the in count of edges to r from s
-                    M_r_row[s] += out_count
-                elseif block == s
-                    # Edges from r to s.
-                    M_s_row[r] -= out_count
-                    # Add as self edges
-                    M_s_row[s] += out_count
+        if direction != -1
+            if direction != 1
+                M_r_col[block] += edge.weight
+                # out edge
+                if block in keys(out_block_count_map)
+                    #@show r, block, edge.weight, out_block_count_map[block]
+                    out_count = out_block_count_map[block]
+                    M_r_col[block] -= out_count
+                    M_s_col[block] += out_count
+                    if block == r
+                        # Edges in the same block.
+                        M_r_row[r] -= out_count # Remove from in count of r.
+                        # Add to the in count of edges to r from s
+                        M_r_row[s] += out_count
+                    elseif block == s
+                        # Edges from r to s.
+                        M_s_row[r] -= out_count
+                        # Add as self edges
+                        M_s_row[s] += out_count
+                    end
                 end
             end
-        end
-        if direction != 2
-            # in edge
-            M_r_row[block] = edgeweight(M, block, r, 0)
-            if block in keys(in_block_count_map)
-                in_count = get(in_block_count_map, block, 0)
-                @show r, block, edgeweight(M, block, r, 0), in_count
-                M_r_row[block] -= in_count
-                M_s_row[block] += in_count
-                if block == r
-                    M_r_col[r] -= in_count
-                    M_r_col[s] += in_count
-                elseif block == s
-                    M_s_col[r] -= in_count
-                    M_s_col[s] += in_count
+            if direction != 2
+                # in edge
+                M_r_row[block] += edgeweight(M, block, r, 0)
+                if block in keys(in_block_count_map)
+                    in_count = get(in_block_count_map, block, 0)
+                    #@show r, block, edgeweight(M, block, r, 0), in_count
+                    M_r_row[block] -= in_count
+                    M_s_row[block] += in_count
+                    if block == r
+                        M_r_col[r] -= in_count
+                        M_r_col[s] += in_count
+                    elseif block == s
+                        M_s_col[r] -= in_count
+                        M_s_col[s] += in_count
+                    end
                 end
             end
         end
@@ -114,10 +116,10 @@ function compute_new_matrix(
     @show M_r_row, M_r_col, M_s_row, M_s_col
     foralledges(M, s) do edge, src, etype
         direction, block = edgeparse(edge)
-        if direction != 1
+        if direction != -1 && direction != 1
             M_s_col[block] += edge.weight
         end
-        if direction != 2
+        if direction != -1 && direction != 2
             M_s_row[block] += edgeweight(M, block, s, 0)
         end
     end
@@ -133,7 +135,9 @@ function compute_new_matrix(
     end
 
     @show M_r_row, M_r_col, M_s_row, M_s_col
-
+    if any(any.(map.(x->x < 0, [M_r_row, M_r_col, M_s_row, M_s_col])))
+        @show any.(map.(x->x < 0, [M_r_row, M_r_col, M_s_row, M_s_col]))
+    end
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
 
@@ -150,7 +154,7 @@ function compute_new_matrix_agglomerative(
 
     foralledges(M, s) do edge, src, etype
         direction, block = edgeparse(edge)
-        if direction != 1
+        if direction != -1 && direction != 1
             # out edges
             M_s_col[block] += edge.weight
             if block == r
@@ -159,7 +163,7 @@ function compute_new_matrix_agglomerative(
                 M_s_col[s] += edge.weight
             end
         end
-        if direction != 2
+        if direction != -1 && direction != 2
             M_s_row[block] += edgeweight(M, block, s, 0)
         end
     end
@@ -167,7 +171,7 @@ function compute_new_matrix_agglomerative(
     foralledges(M, r) do edge, src, etype
         direction, block = edgeparse(edge)
         # Move outgoing edges from r to s.
-        if direction != 1
+        if direction != -1 && direction != 1
             # out edge
             M_s_col[block] += edge.weight
             if block == r || block == s
@@ -179,7 +183,7 @@ function compute_new_matrix_agglomerative(
             end
         end
         # Avoid double counting s->r.
-        if direction != 2 && block != s
+        if direction != -1 && direction != 2 && block != s
             # in edge
             M_s_row[block] += edgeweight(M, block, r, 0)
         end
@@ -198,11 +202,11 @@ function compute_multinomial_probs(
     probabilities = zeros(length(degrees))
     foralledges(M, block) do edge, src, etype
         direction, neighbor = edgeparse(edge)
-        if direction != 1
+        if direction != -1 && direction != 1
             # out edge
             probabilities[neighbor] += edge.weight
         end
-        if direction != 2
+        if direction != -1 && direction != 2
             # in edge
             probabilities[neighbor] += edgeweight(M, neighbor, block, 0)
         end
@@ -224,34 +228,40 @@ function compute_delta_entropy(
         if t1 ∈ (r, s)
             continue
         end
-        delta -= M_r_col[t1] * log(M_r_col[t1] / d_in_new[t1] / d_out_new[r])
+        @show t1, M_r_col[t1], d_in_new[t1], d_out_new[r]
+        @show delta -= M_r_col[t1] * log(M_r_col[t1] / d_in_new[t1] / d_out_new[r])
     end
     for t1 in findn(M_s_col)
         if t1 ∈ (r, s)
             continue
         end
-        delta -= M_s_col[t1] * log(M_s_col[t1] / d_in_new[t1] / d_out_new[s])
+        @show t1, M_s_col[t1], d_in_new[t1], d_out_new[s]
+        @show delta -= M_s_col[t1] * log(M_s_col[t1] / d_in_new[t1] / d_out_new[s])
     end
     # Sum over row of r in new M
     for t2 in findn(M_r_row)
-        delta -= M_r_row[t2] * log(M_r_row[t2] / d_in_new[r] / d_out_new[t2])
+        @show t2, M_r_row[t2], d_in_new[r], d_out_new[t2]
+        @show delta -= M_r_row[t2] * log(M_r_row[t2] / d_in_new[r] / d_out_new[t2])
     end
     # Sum over row of s in new M
     for t2 in findn(M_s_row)
+        @show t2, M_s_row[t2], d_in_new[s], d_out_new[t2]
         delta -= M_s_row[t2] * log(M_s_row[t2] / d_in_new[s] / d_out_new[t2])
     end
     # Sum over edges in old M
     for block in (r, s)
         foralledges(M, block) do edge, src, etype
             direction, neighbor = edgeparse(edge)
-            if direction != 1
+            if direction != -1 && direction != 1
                 # edge is block -> neighbor
-                delta += edge.weight * log(edge.weight / d_in[neighbor] / d_out[block])
+                @show block, neighbor, edge.weight , d_in[neighbor] , d_out[block]
+                @show delta += edge.weight * log(edge.weight / d_in[neighbor] / d_out[block])
             end
             # Prevent double counting the r->s, s->r edges.
-            if direction != 2 && !((block, neighbor) == (r, s) || (block, neighbor) == (s, r))
+            if direction != -1 && direction != 2 && !((block, neighbor) == (r, s) || (block, neighbor) == (s, r))
                 # edge is neighbor -> block
                 edgecount = edgeweight(M, neighbor, block, 0)
+                @show block, neighbor, edgecount , d_in[block] , d_out[neighbor]
                 delta += edgecount * log(edgecount / d_in[block] / d_out[neighbor])
             end
         end
@@ -268,7 +278,7 @@ function compute_overall_entropy(
     for block=1:B
         foralledges(M, B) do edge, src, etype
             direction, neighbor = edgeparse(edge)
-            if direction != 1
+            if direction != -1 && direction != 1
                 edgecount = edge.weight
                 summation_term -= edgecount * log(edgecount/ d_in[neighbor] / d_out[block])
             end
@@ -297,10 +307,10 @@ function compute_hastings_correction(
             degree = get(blocks_out_count_map, t, 0) +
                 get(blocks_in_count_map, t, 0)
             m = 0.0
-            if direction != 1
+            if direction != -1 && direction != 1
                 m += edge.weight
             end
-            if direction != 2
+            if direction != -1 && direction != 2
                 m += edgeweight(M, t, s, 0)
             end
             p_forward += degree * (m + 1) / (d[t] + B)
@@ -316,42 +326,44 @@ function update_partition(
     M_r_row::Vector{Int64}, M_s_row::Vector{Int64}
     )
     println("Updating partition for $r, $s")
+
+    # Removing edges that don't exist anymore
     foralledges(M, r) do edge, src, etype
         direction, neighbor = edgeparse(edge)
-        @show direction, neighbor, edge.weight, edgeweight(M, 0, neighbor, r)
-        if direction != 1 && M_r_col[neighbor] == 0
-            insert_edge!(M, 0, r, neighbor, 0, 1)
+        #@show direction, neighbor, edge.weight, edgeweight(M, 0, neighbor, r)
+        if direction != -1 && direction != 1 && M_r_col[neighbor] == 0
+            remove_edge!(M, 0, r, neighbor)
         end
-        if direction != 2 && M_r_row[neighbor] == 0
-            insert_edge!(M, 0, neighbor, r, 0, 1)
+        if direction != -1 && direction != 2 && M_r_row[neighbor] == 0
+            remove_edge!(M, 0, neighbor, r)
         end
     end
     foralledges(M, s) do edge, src, etype
         direction, neighbor = edgeparse(edge)
-        if direction != 1 && M_s_col[neighbor] == 0
-            insert_edge!(M, 0, s, neighbor, 0, 1)
-            println("Should be 0: $(edgeweight(M, s, neighbor, 0))")
+        if direction != -1 && direction != 1 && M_s_col[neighbor] == 0
+            remove_edge!(M, 0, s, neighbor)
         end
-        if direction != 2 && M_s_row[neighbor] == 0
-            insert_edge!(M, 0, neighbor, s, 0, 1)
-            println("Should be 0: $(edgeweight(M, neighbor, s, 0))")
+        if direction != -1 && direction != 2 && M_s_row[neighbor] == 0
+            remove_edge!(M, 0, neighbor, s)
         end
     end
+
+    # Adding and updating valid edges
     for idx in findn(M_r_col)
         insert_edge!(M, 0, r, idx, M_r_col[idx], 1)
-        @show idx, r, M_r_col[idx], edgeweight(M, r, idx, 0)
+        #@show idx, r, M_r_col[idx], edgeweight(M, r, idx, 0)
     end
     for idx in findn(M_r_row)
         insert_edge!(M, 0, idx, r, M_r_row[idx], 1)
-        @show idx, r, M_r_row[idx], edgeweight(M, idx, r, 0)
+        #@show idx, r, M_r_row[idx], edgeweight(M, idx, r, 0)
     end
     for idx in findn(M_s_col)
         insert_edge!(M, 0, s, idx, M_s_col[idx], 1)
-        @show s, idx, M_s_col[idx], edgeweight(M, s, idx, 0)
+        #@show s, idx, M_s_col[idx], edgeweight(M, s, idx, 0)
     end
     for idx in findn(M_s_row)
         insert_edge!(M, 0, idx, s, M_s_row[idx], 1)
-        @show s, idx, M_s_row[idx], edgeweight(M, idx, s, 0)
+        #@show s, idx, M_s_row[idx], edgeweight(M, idx, s, 0)
     end
     println("Updated partition")
     M
