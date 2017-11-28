@@ -3,6 +3,8 @@ import StingerGraphs: Stinger, remove_edge!, insert_edge!, indegree, outdegree, 
 immutable InterblockEdgeCountStinger
     s::Stinger
     self_edge_counts::Vector{Int64} #to store self edge counts
+    outdegrees::Vector{Int64}
+    indegrees::Vector{Int64}
 end
 
 """
@@ -18,6 +20,8 @@ function initialize_edge_counts!(
     for edge in edges(g)
         s, d = b[src(edge)], b[dst(edge)]
         edge_counts[(s=>d)] = get(edge_counts, s=>d, 0) + 1
+        M.outdegrees[s] += 1
+        M.indegrees[d] += 1
     end
     for ((s, d), edgecount) in edge_counts
         if s == d
@@ -36,7 +40,7 @@ function initialize_edge_counts(
     )
     M = InterblockEdgeCountStinger(
         Stinger(stingerconfig(B + 1)), # To prevent off by one errors
-        zeros(Int64, B)
+        zeros(Int64, B), zeros(Int64, B), zeros(Int64, B)
     )
     initialize_edge_counts!(M, g, B, b)
     M
@@ -62,8 +66,8 @@ end
 
 function compute_block_degrees(M::InterblockEdgeCountStinger, B::Int64)
     # Sum across rows to get the outdegrees for each block
-    d_out = [outdegree(M.s, block) + M.self_edge_counts[block] for block=1:B]
-    d_in = [indegree(M.s, block) + M.self_edge_counts[block] for block=1:B]
+    d_out = copy(M.outdegrees)
+    d_in = copy(M.indegrees)
     d = d_out + d_in
     return d_out, d_in, d
 end
@@ -347,50 +351,86 @@ function update_partition(
 
     M.self_edge_counts[r] = M_r_col[r]
     M.self_edge_counts[s] = M_s_col[s]
-    # Removing edges that don't exist anymore
 
+    # Setting degree counts for r and s
+    M.outdegrees[r] = sum(M_r_col)
+    M.indegrees[r] = sum(M_r_row)
+    M.outdegrees[s] = sum(M_s_col)
+    M.indegrees[s] = sum(M_s_row)
+
+    # Setting to 0 as we don't care about these anymore.
     M_r_col[r] = 0
     M_r_row[r] = 0
     M_s_col[s] = 0
     M_s_row[s] = 0
 
+    # Updating edges that already exist
     foralledges(M.s, r) do edge, src, etype
         direction, neighbor = edgeparse(edge)
         #@show direction, neighbor, edge.weight, edgeweight(M.s, 0, neighbor, r)
-        if direction != -1 && direction != 1 && neighbor != r && M_r_col[neighbor] == 0
-            remove_edge!(M.s, 0, r, neighbor)
+        if direction != -1 && direction != 1 && neighbor != r
+            # Update indegree count of neighbor and remove the edge
+            M.indegrees[neighbor] -= (edge.weight - M_r_col[neighbor])
+            if M_r_col[neighbor] == 0
+                remove_edge!(M.s, 0, r, neighbor)
+            else
+                insert_edge!(M.s, 0, r, neighbor, M_r_col[neighbor], 1)
+                M_r_col[neighbor] = 0
+            end
         end
-        if direction != -1 && direction != 2 && neighbor != r && M_r_row[neighbor] == 0
-            if neighbor == r
+        if direction != -1 && direction != 2 && neighbor != r
+            # Update outdegree count of neighbor and remove the edge
+            M.outdegrees[neighbor] -= (edgeweight(M.s, neighbor, r, 0) - M_r_row[neighbor])
+            if M_r_row[neighbor] == 0
                 remove_edge!(M.s, 0, neighbor, r)
+            else
+                insert_edge!(M.s, 0, neighbor, r, M_r_row[neighbor], 1)
+                M_r_row[neighbor] = 0
             end
         end
     end
+
     foralledges(M.s, s) do edge, src, etype
         direction, neighbor = edgeparse(edge)
-        if direction != -1 && direction != 1 && neighbor != s && M_s_col[neighbor] == 0
-            remove_edge!(M.s, 0, s, neighbor)
+        if direction != -1 && direction != 1 && neighbor != s
+            M.indegrees[neighbor] -= (edge.weight - M_s_col[neighbor])
+            if M_s_col[neighbor] == 0
+                remove_edge!(M.s, 0, s, neighbor)
+            else
+                insert_edge!(M.s, 0, s, neighbor, M_s_col[neighbor], 1)
+                M_s_col[neighbor] = 0
+            end
         end
-        if direction != -1 && direction != 2 && neighbor != s && M_s_row[neighbor] == 0
-            remove_edge!(M.s, 0, neighbor, s)
+        if direction != -1 && direction != 2 && neighbor != s
+            M.outdegrees[neighbor] -= (edgeweight(M.s, neighbor, s, 0) - M_s_row[neighbor])
+            if M_s_row[neighbor] == 0
+                remove_edge!(M.s, 0, neighbor, s)
+            else
+                insert_edge!(M.s, 0, neighbor, s, M_s_row[neighbor], 1)
+                M_s_row[neighbor] = 0
+            end
         end
     end
 
-    # Adding and updating valid edges
+    # Adding new edges
     for idx in findn(M_r_col)
         insert_edge!(M.s, 0, r, idx, M_r_col[idx], 1)
+        M.indegrees[idx] += M_r_col[idx]
         #@show idx, r, M_r_col[idx], edgeweight(M.s, r, idx, 0)
     end
     for idx in findn(M_r_row)
         insert_edge!(M.s, 0, idx, r, M_r_row[idx], 1)
+        M.outdegrees[idx] += M_r_row[idx]
         #@show idx, r, M_r_row[idx], edgeweight(M.s, idx, r, 0)
     end
     for idx in findn(M_s_col)
         insert_edge!(M.s, 0, s, idx, M_s_col[idx], 1)
+        M.indegrees[idx] += M_s_col[idx]
         #@show s, idx, M_s_col[idx], edgeweight(M.s, s, idx, 0)
     end
     for idx in findn(M_s_row)
         insert_edge!(M.s, 0, idx, s, M_s_row[idx], 1)
+        M.outdegrees[idx] += M_r_row[idx]
         #@show s, idx, M_s_row[idx], edgeweight(M.s, idx, s, 0)
     end
     println("Updated partition")
@@ -398,5 +438,6 @@ function update_partition(
 end
 
 function zeros_interblock_edge_matrix(::Type{InterblockEdgeCountStinger}, size::Int64)
-    return InterblockEdgeCountStinger(Stinger(stingerconfig(0)), zeros(Int64, 0))
+    return InterblockEdgeCountStinger(
+        Stinger(stingerconfig(0)), zeros(Int64, 0), zeros(Int64, 0), zeros(Int64, 0))
 end
