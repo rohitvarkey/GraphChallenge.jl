@@ -38,4 +38,9 @@ function test_compute_new_matrix(::Type{Array{Int64, 2}})
     @test M_r_col == [5, 2, 1]
     @test M_s_row == [2, 12, 8]
     @test M_s_col == [3, 12, 15]
+
+    @show d_out, d_in, d = compute_block_degrees(M, 3)
+    @show overall_entropy = compute_overall_entropy(
+        M, d_out, d_in, 3, 3, sum(d)
+    )
 end

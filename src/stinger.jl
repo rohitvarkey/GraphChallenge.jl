@@ -324,15 +324,18 @@ function compute_overall_entropy(
     )
     summation_term = 0.0
     for block=1:B
-        foralledges(M.s, B) do edge, src, etype
+        foralledges(M.s, block) do edge, src, etype
             direction, neighbor = edgeparse(edge)
             if direction != -1 && direction != 1
                 edgecount = edge.weight
                 summation_term -= edgecount * log(edgecount/ d_in[neighbor] / d_out[block])
             end
         end
+        if M.self_edge_counts[block] != 0
+            edgecount = M.self_edge_counts[block]
+            summation_term -= edgecount * log(edgecount/ d_in[block] / d_out[block])
+        end
     end
-    summation_term += sum(M.self_edge_counts)
     model_S_term = B^2 / E
     model_S = E * (1 + model_S_term) * log(1 + model_S_term) -
         model_S_term * log(model_S_term) + N*log(B)
@@ -378,7 +381,7 @@ function update_partition(
     M_r_col::Vector{Int64}, M_s_col::Vector{Int64},
     M_r_row::Vector{Int64}, M_s_row::Vector{Int64}
     )
-    println("Updating partition for $r, $s")
+    #println("Updating partition for $r, $s")
 
     M.self_edge_counts[r] = M_r_col[r]
     M.self_edge_counts[s] = M_s_col[s]

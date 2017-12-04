@@ -129,7 +129,7 @@ function information_theory_metrics(confusion_matrix::Array{Float64, 2})
     println("Entropy of alg. partition: ", abs(H_b2))
     println("Conditional entropy of truth partition given alg. partition: ", abs(H_b1_b2))
     println("Conditional entropy of alg. partition given truth partition: ", abs(H_b2_b1))
-    println("Mututal informationion between truth partition and alg. partition: ", abs(MI_b1_b2))
+    println("Mututal information between truth partition and alg. partition: ", abs(MI_b1_b2))
     println("Fraction of missed information: ", abs(fraction_missed_info))
     println("Fraction of erroneous information: ", abs(fraction_err_info))
 

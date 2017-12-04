@@ -4,7 +4,9 @@ import GraphChallenge: compute_block_neighbors_and_degrees,
                        compute_new_matrix_agglomerative,
                        compute_new_matrix,
                        compute_delta_entropy,
-                       carry_out_best_merges
+                       carry_out_best_merges,
+                       update_partition,
+                       compute_overall_entropy
 
 import StingerGraphs: Stinger
 
@@ -21,13 +23,26 @@ end
 @testset "Initialization" begin
     for T in (Array{Int64, 2}, InterblockEdgeCountDictDict,
         InterblockEdgeCountVectorDict, InterblockEdgeCountStinger)
+        println("Testing for: $T")
         num_nodes = 50
         g = load_graph(50)
         M = initialize_edge_counts(
             T, g, num_nodes, collect(1:num_nodes)
         )
+
         test_initialize_counts(M, g)
         test_compute_block_degrees(M, g, num_nodes)
+        @show d_out, d_in, d = compute_block_degrees(M, 50)
+
+        # compute the global entropy for MCMC convergence criterion
+        #@show overall_entropy = compute_overall_entropy(
+        #    M, d_out, d_in, 50, nv(g), ne(g)
+        #)
+
+        #@test round(overall_entropy,11)  == 7547.63915522856
+        @test d_out == [5, 6, 4, 8, 4, 4, 4, 5, 6, 8, 4, 8, 6, 4, 9, 14, 7, 4, 8, 13, 6, 6, 5, 4, 4, 11, 8, 4, 4, 5, 6, 7, 5, 7, 9, 10, 11, 8, 7, 7, 5, 4, 5, 9, 4, 4, 4, 8, 4, 7]
+        @test d_in == [6, 4, 9, 4, 7, 5, 4, 9, 4, 4, 5, 6, 5, 14, 10, 4, 4, 4, 6, 7, 5, 6, 5, 6, 10, 7, 9, 6, 5, 7, 8, 10, 6, 11, 8, 9, 7, 4, 6, 4, 6, 4, 5, 5, 5, 4, 4, 14, 6, 6]
+        @test d == [11, 10, 13, 12, 11, 9, 8, 14, 10, 12, 9, 14, 11, 18, 19, 18, 11, 8, 14, 20, 11, 12, 10, 10, 14, 18, 17, 10, 9, 12, 14, 17, 11, 18, 17, 19, 18, 12, 13, 11, 11, 8, 10, 14, 9, 8, 8, 22, 10, 13]
     end
 end
 
@@ -51,6 +66,7 @@ end
 @testset "Agglomerative step" begin
     for T in (Array{Int64, 2}, InterblockEdgeCountDictDict,
         InterblockEdgeCountVectorDict, InterblockEdgeCountStinger)
+        println("Testing for: $T")
         test_compute_new_matrix_agglomerative(T)
         num_nodes = 50
         g = load_graph(50)
@@ -116,6 +132,7 @@ end
 @testset "Nodal step" begin
     for T in (Array{Int64, 2}, InterblockEdgeCountDictDict,
         InterblockEdgeCountVectorDict, InterblockEdgeCountStinger)
+        println("Testing for: $T")
         test_compute_new_matrix(T)
     end
 end

@@ -18,7 +18,7 @@ function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountStinger
     block_in_edges = Dict(
         1 => Dict(1=>8, 2=>3, 3=>5),
         2 => Dict(1=>2, 2=>9, 3=>6),
-        3 => Dict(1=>5, 2=>12, 3=>10)
+        3 => Dict(1=>4, 2=>12, 3=>10)
     )
     M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3), zeros(3), zeros(3))
     for (src_block, edges) in block_out_edges
@@ -59,7 +59,7 @@ function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
     block_in_edges = Dict(
         1 => Dict(1=>8, 2=>3, 3=>5),
         2 => Dict(1=>2, 2=>9, 3=>6),
-        3 => Dict(1=>5, 2=>12, 3=>10)
+        3 => Dict(1=>4, 2=>12, 3=>10)
     )
     M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3), zeros(3), zeros(3))
     for (src_block, edges) in block_out_edges
@@ -81,6 +81,7 @@ function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
         M.self_edge_counts[i] = block_out_edges[i][i]
     end
     @show M
+
     r = 1
     s = 2
     block_out_count_map = Dict(
@@ -95,4 +96,23 @@ function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
     @test M_r_col == [5, 2, 1]
     @test M_s_row == [2, 12, 8]
     @test M_s_col == [3, 12, 15]
+
+    @show d_out, d_in, d = compute_block_degrees(M, 3)
+    @show overall_entropy = compute_overall_entropy(
+        M, d_out, d_in, 3, 3, sum(d)
+    )
+
+    M = update_partition(
+        M, r, s,
+        M_r_col, M_s_col, M_r_row, M_s_row
+    )
+
+    @test M.self_edge_counts == [5, 12, 10]
+    @test M.outdegrees == [5+2+1, 3+12+15, 5+6+10]
+    @test M.indegrees == [5+3+3, 2+12+8, 4+12+10]
+
+    @show d_out, d_in, d = compute_block_degrees(M, 3)
+    @show overall_entropy = compute_overall_entropy(
+        M, d_out, d_in, 3, 3, sum(d)
+    )
 end
