@@ -7,7 +7,8 @@ using StatsBase
 
 export load_graph!, load_graph, initialize_edge_counts, compute_block_degrees,
        partition, evaluate_partition, plotbeliefs, static_partition_experiment,
-       InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict
+       InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict,
+       InterblockEdgeCountStinger
 
 # package code goes here
 const INPUT_PATH = joinpath(dirname(dirname(@__FILE__)), "data")
@@ -17,6 +18,7 @@ include("load_graph.jl")
 include("interblock_matrix.jl")
 include("dictofdicts.jl")
 include("vectorofdicts.jl")
+include("stinger.jl")
 include("partition.jl")
 #include("plot.jl")
 include("evaluate.jl")

@@ -32,13 +32,19 @@ function initialize_edge_counts(
 end
 
 function compute_block_neighbors_and_degrees(M::InterblockEdgeCountVectorDict, block::Int64)
-    out_neighbors = collect(keys(M.block_out_edges[block]))
-    in_neighbors = collect(keys(M.block_in_edges[block]))
-    neighbors = collect(Set(out_neighbors) ∪ Set(in_neighbors))
-    k_in = sum(values(M.block_in_edges[block]))
-    k_out = sum(values(M.block_out_edges[block]))
+    neighbors = Set{Int64}()
+    k_in = zero(Int64)
+    k_out = zero(Int64)
+    for (neighbor, out_count) in M.block_out_edges[block]
+        k_out += out_count
+        push!(neighbors, neighbor)
+    end
+    for (neighbor, in_count) in M.block_in_edges[block]
+        k_in += in_count
+        push!(neighbors, neighbor)
+    end
     k = k_out + k_in
-    neighbors, k_out, k_in, k
+    collect(neighbors), k_out, k_in, k
 end
 
 

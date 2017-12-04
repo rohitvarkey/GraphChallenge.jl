@@ -163,7 +163,7 @@ function propose_new_partition_nodal{T}(
         s = sample(collect(candidates))
     else
         multinomial_prob = compute_multinomial_probs(M, d, u)
-        multinomial_prob[r] = 0
+        #multinomial_prob[r] = 0
         if sum(multinomial_prob) == 0
             candidates = Set(1:B)
             pop!(candidates, r)
@@ -214,6 +214,8 @@ function evaluate_nodal_proposal{T}(
         new_d[r] -= degree
         new_d[s] += degree
     end
+
+    #@show d_out, d_in, d, k_out, k_in, k, new_degrees
 
     hastings_correction = compute_hastings_correction(
         s, M, M_r_row, M_r_col, num_blocks, d, new_degrees[3],
@@ -293,7 +295,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
         d_out, d_in, d = compute_block_degrees(M, num_blocks)
 
         # compute the global entropy for MCMC convergence criterion
-        overall_entropy = compute_overall_entropy(
+        overall_entropy::Float64 = compute_overall_entropy(
             M, d_out, d_in, num_blocks, nv(g), ne(g)
         )
 
@@ -303,7 +305,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
             num_nodal_moves = 0
             nodal_itr_delta_entropy[nodal_itr] = 0
 
-            for current_node in vertices(g)
+            for current_node::Int64 in vertices(g)
                 current_block  = partition[current_node]
                 out_n = out_neighbors(g, current_node)
                 in_n = vertex_in_neighbors[current_node]
@@ -330,10 +332,10 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                         Int64, get_weight(g, current_node, current_node)
                     )
 
-                    k_in = length(in_n)
-                    k_out = outdegree(g, current_node)
+                    k_in::Int64 = length(in_n)
+                    k_out::Int64 = LightGraphs.outdegree(g, current_node)
 
-                    M_r_row, M_r_col, M_s_row, M_s_col, Δ, p_accept =
+                    M_r_row, M_r_col, M_s_row, M_s_col, Δ::Float64, p_accept::Float64 =
                     evaluate_nodal_proposal(
                         M, current_block, proposal, num_blocks, β,
                         d, d_in, d_out, k_in + k_out, k_in, k_out,

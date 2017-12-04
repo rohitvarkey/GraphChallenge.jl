@@ -6,4 +6,5 @@ function static_partition_experiment(T::Type, num_nodes::Int64; plot_file="block
     t = load_truth_partition(num_nodes)
     #draw(SVG(plot_file, 32cm, 32cm), plotbeliefs(g, p))
     evaluate_partition(t, p)
+    nothing
 end
