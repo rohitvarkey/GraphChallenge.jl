@@ -467,11 +467,11 @@ function update_partition(
         M.outdegrees[idx] += M_r_row[idx]
         #@show s, idx, M_s_row[idx], edgeweight(M.s, idx, s, 0)
     end
-    println("Updated partition")
+    #println("Updated partition")
     M
 end
 
 function zeros_interblock_edge_matrix(::Type{InterblockEdgeCountStinger}, size::Int64)
     return InterblockEdgeCountStinger(
-        Stinger(stingerconfig(0)), zeros(Int64, 0), zeros(Int64, 0), zeros(Int64, 0))
+        Stinger(stingerconfig(1)), zeros(Int64, 0), zeros(Int64, 0), zeros(Int64, 0))
 end
