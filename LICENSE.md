@@ -1,5 +1,7 @@
 The GraphChallenge.jl package is licensed under the Apache License, Version 2.0:
 
+With the addendum that if you use this code in a publication of any kind, such as a scientific conference, or academic journal. You must provide due credit to the authors of this code.
+
 > Copyright (c) 2017: Rohit Varkey Thankachan.
 >
 >                                  Apache License
