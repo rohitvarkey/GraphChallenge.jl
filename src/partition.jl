@@ -190,6 +190,10 @@ function evaluate_proposal_agg{T}(
         new_d[r] -= degree
         new_d[s] += degree
     end
+    #if any(any.(map.(x->x < 0, new_degrees)))
+    #    @show any.(map.(x->x < 0, new_degrees))
+    #    @show new_degrees
+    #end
     compute_delta_entropy(
         M, r, s, M_r_col, M_s_col, M_r_row, M_s_row, d_out, d_in,
         new_degrees[1], new_degrees[2]
@@ -215,6 +219,11 @@ function evaluate_nodal_proposal{T}(
         new_d[s] += degree
     end
 
+    #if any(any.(map.(x->x < 0, new_degrees)))
+    #    @show any.(map.(x->x < 0, new_degrees))
+    #    @show new_degrees
+    #    @show d_out, d_in, d, k_out, k_in, k
+    #end
     #@show d_out, d_in, d, k_out, k_in, k, new_degrees
 
     hastings_correction = compute_hastings_correction(
@@ -319,6 +328,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                     M, current_block, partition, num_blocks,
                     d, vcat(out_n, in_n), vcat(out_wts, in_wts)
                 )
+                #println("proposal: $proposal, current:$current_block")
                 if (proposal != current_block)
                     #println("Performing nodal move on $current_node")
                     blocks_out_count_map = countmap(

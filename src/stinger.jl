@@ -31,6 +31,8 @@ function initialize_edge_counts!(
             insert_edge!(M.s, 0, s, d, edgecount, 1)
         end
     end
+    #@show sum(M.indegrees)
+    #@show sum(M.outdegrees)
     M
 end
 
@@ -38,8 +40,9 @@ function initialize_edge_counts(
     _::Type{InterblockEdgeCountStinger}, g::SimpleWeightedDiGraph, B::Int64,
     b::Vector{Int64}
     )
+    nebs = ceil(Int64, B/14) * B
     M = InterblockEdgeCountStinger(
-        Stinger(stingerconfig(B + 1)), # To prevent off by one errors
+        Stinger(stingerconfig(B + 1, nebs = nebs * 2)), # To prevent off by one errors
         zeros(Int64, B), zeros(Int64, B), zeros(Int64, B)
     )
     initialize_edge_counts!(M, g, B, b)
@@ -173,9 +176,9 @@ function compute_new_matrix(
     end
 
     #@show M_r_row, M_r_col, M_s_row, M_s_col
-    if any(any.(map.(x->x < 0, [M_r_row, M_r_col, M_s_row, M_s_col])))
-        @show any.(map.(x->x < 0, [M_r_row, M_r_col, M_s_row, M_s_col]))
-    end
+    #if any(any.(map.(x->x < 0, [M_r_row, M_r_col, M_s_row, M_s_col])))
+    #    @show any.(map.(x->x < 0, [M_r_row, M_r_col, M_s_row, M_s_col]))
+    #end
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
 
@@ -464,10 +467,12 @@ function update_partition(
     end
     for idx in findn(M_s_row)
         insert_edge!(M.s, 0, idx, s, M_s_row[idx], 1)
-        M.outdegrees[idx] += M_r_row[idx]
+        M.outdegrees[idx] += M_s_row[idx]
         #@show s, idx, M_s_row[idx], edgeweight(M.s, idx, s, 0)
     end
     #println("Updated partition")
+    #@show sum(M.indegrees)
+    #@show sum(M.outdegrees)
     M
 end
 
