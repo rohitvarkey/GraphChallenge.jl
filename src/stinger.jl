@@ -407,7 +407,9 @@ function update_partition(
         #@show direction, neighbor, edge.weight, edgeweight(M.s, 0, neighbor, r)
         if direction != -1 && direction != 1 && neighbor != r
             # Update indegree count of neighbor and remove the edge
-            M.indegrees[neighbor] -= (edge.weight - M_r_col[neighbor])
+            if neighbor != s
+                M.indegrees[neighbor] -= (edge.weight - M_r_col[neighbor])
+            end
             if M_r_col[neighbor] == 0
                 remove_edge!(M.s, 0, r, neighbor)
             else
@@ -417,7 +419,9 @@ function update_partition(
         end
         if direction != -1 && direction != 2 && neighbor != r
             # Update outdegree count of neighbor and remove the edge
-            M.outdegrees[neighbor] -= (edgeweight(M.s, neighbor, r, 0) - M_r_row[neighbor])
+            if neighbor != s
+                M.outdegrees[neighbor] -= (edgeweight(M.s, neighbor, r, 0) - M_r_row[neighbor])
+            end
             if M_r_row[neighbor] == 0
                 remove_edge!(M.s, 0, neighbor, r)
             else
@@ -430,7 +434,9 @@ function update_partition(
     foralledges(M.s, s) do edge, src, etype
         direction, neighbor = edgeparse(edge)
         if direction != -1 && direction != 1 && neighbor != s
-            M.indegrees[neighbor] -= (edge.weight - M_s_col[neighbor])
+            if neighbor != r
+                M.indegrees[neighbor] -= (edge.weight - M_s_col[neighbor])
+            end
             if M_s_col[neighbor] == 0
                 remove_edge!(M.s, 0, s, neighbor)
             else
@@ -439,7 +445,9 @@ function update_partition(
             end
         end
         if direction != -1 && direction != 2 && neighbor != s
-            M.outdegrees[neighbor] -= (edgeweight(M.s, neighbor, s, 0) - M_s_row[neighbor])
+            if neighbor != s
+                M.outdegrees[neighbor] -= (edgeweight(M.s, neighbor, s, 0) - M_s_row[neighbor])
+            end
             if M_s_row[neighbor] == 0
                 remove_edge!(M.s, 0, neighbor, s)
             else
@@ -452,27 +460,34 @@ function update_partition(
     # Adding new edges
     for idx in findn(M_r_col)
         insert_edge!(M.s, 0, r, idx, M_r_col[idx], 1)
-        M.indegrees[idx] += M_r_col[idx]
+        if idx != s
+            M.indegrees[idx] += M_r_col[idx]
+        end
         #@show idx, r, M_r_col[idx], edgeweight(M.s, r, idx, 0)
     end
     for idx in findn(M_r_row)
         insert_edge!(M.s, 0, idx, r, M_r_row[idx], 1)
-        M.outdegrees[idx] += M_r_row[idx]
+        if idx != s
+            M.outdegrees[idx] += M_r_row[idx]
+        end
         #@show idx, r, M_r_row[idx], edgeweight(M.s, idx, r, 0)
     end
     for idx in findn(M_s_col)
         insert_edge!(M.s, 0, s, idx, M_s_col[idx], 1)
-        M.indegrees[idx] += M_s_col[idx]
+        if idx != r
+            M.indegrees[idx] += M_s_col[idx]
+        end
         #@show s, idx, M_s_col[idx], edgeweight(M.s, s, idx, 0)
     end
     for idx in findn(M_s_row)
         insert_edge!(M.s, 0, idx, s, M_s_row[idx], 1)
-        M.outdegrees[idx] += M_s_row[idx]
+        if idx != r
+            M.outdegrees[idx] += M_s_row[idx]
+        end
         #@show s, idx, M_s_row[idx], edgeweight(M.s, idx, s, 0)
     end
     #println("Updated partition")
-    #@show sum(M.indegrees)
-    #@show sum(M.outdegrees)
+
     M
 end
 
