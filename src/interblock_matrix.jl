@@ -9,16 +9,16 @@ function initialize_edge_counts!(
     )
     @assert size(M) == (B, B)
     for edge in edges(g)
-            M[b[dst(edge)], b[src(edge)]] += weight(edge)
+        M[b[dst(edge)], b[src(edge)]] += weight(edge)
     end
 end
 
-function compute_block_neighbors_and_degrees(M::Array{Int64, 2}, block::Int64)
-    out_neighbors = findn(M[:, block])
-    in_neighbors = findn(M[block, :])
+function compute_block_neighbors_and_degrees(p::Partition{Array{Int64, 2}}, block::Int64)
+    out_neighbors = findn(p.M[:, block])
+    in_neighbors = findn(p.M[block, :])
     neighbors = collect(Set(out_neighbors) ∪ Set(in_neighbors))
-    k_in = sum(M[block, in_neighbors])
-    k_out = sum(M[out_neighbors, block])
+    k_in = sum(p.M[block, in_neighbors])
+    k_out = sum(p.M[out_neighbors, block])
     k = k_out + k_in
     neighbors, k_out, k_in, k
 end
@@ -42,13 +42,13 @@ function initialize_edge_counts(
 end
 
 function compute_new_matrix(
-    M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64,
+    p::Partition{Array{Int64, 2}}, r::Int64, s::Int64,
     out_block_count_map, in_block_count_map, self_edge_weight::Int64
     )
-    M_r_row = copy(M[r, :])
-    M_r_col = copy(M[:, r])
-    M_s_row = copy(M[s, :])
-    M_s_col = copy(M[:, s])
+    M_r_row = copy(p.M[r, :])
+    M_r_col = copy(p.M[:, r])
+    M_s_row = copy(p.M[s, :])
+    M_s_col = copy(p.M[:, s])
 
     for (block, out_count) in out_block_count_map
         M_r_col[block] -= out_count
@@ -85,39 +85,38 @@ end
 """Computes the new rows and cols in `M`, when all nodes from `r` are shifted to
 block `s`."""
 function compute_new_matrix_agglomerative(
-    M::Array{Int64, 2}, r::Int64, s::Int64, num_blocks::Int64
+    p::Partition{Array{Int64, 2}}, r::Int64, s::Int64
     )
 
-    M_r_row = zeros(Int64, num_blocks)
-    M_r_col = zeros(Int64, num_blocks)
+    M_r_row = zeros(Int64, p.B)
+    M_r_col = zeros(Int64, p.B)
 
-    M_s_row = copy(M[s, :])
-    M_s_col = copy(M[:, s])
+    M_s_row = copy(p.M[s, :])
+    M_s_col = copy(p.M[:, s])
 
     #TODO: Optimize this
-    M_s_row += M[r, :]
+    M_s_row += p.M[r, :]
     M_s_row[r] = 0
-    M_s_row[s] += M[r, r] + M[s, r]
+    M_s_row[s] += p.M[r, r] + p.M[s, r]
 
-    M_s_col += M[:, r]
+    M_s_col += p.M[:, r]
     M_s_col[r] = 0
-    M_s_col[s] += M[r, r] + M[r, s]
+    M_s_col[s] += p.M[r, r] + p.M[r, s]
 
     #TODO : Check self edge case
     return M_r_row, M_r_col, M_s_row, M_s_col
 end
 
 function compute_multinomial_probs(
-    M::Array{Int64, 2},  degrees::Vector{Int64}, vertex::Int64
+    p::Partition{Array{Int64, 2}}, vertex::Int64
     )
-    return (M[:, vertex] .+ M[vertex, :]) ./ degrees[vertex]
+    return (p.M[:, vertex] .+ p.M[vertex, :]) ./ p.d[vertex]
 end
 
 function compute_delta_entropy(
-    M::Array{Int64, 2}, r::Int64, s::Int64,
+    p::Partition{Array{Int64, 2}}, r::Int64, s::Int64,
     M_r_col::Vector{Int64}, M_s_col::Vector{Int64}, M_r_row::Vector{Int64},
-    M_s_row::Vector{Int64}, d_out::Vector{Int64}, d_in::Vector{Int64},
-    d_out_new::Vector{Int64}, d_in_new::Vector{Int64}
+    M_s_row::Vector{Int64}, d_out_new::Vector{Int64}, d_in_new::Vector{Int64}
     )
     delta = 0.0
     # Sum over col of r in new M
@@ -144,18 +143,18 @@ function compute_delta_entropy(
     end
     # Sum over columns in old M
     for t2 in (r, s)
-        for t1 in findn(M[:, t2])
+        for t1 in findn(p.M[:, t2])
             # Skip if t1 is r or s to prevent double counting
             if t1 ∈ (r, s)
                 continue
             end
-            delta += M[t1, t2] * log(M[t1, t2] / d_in[t1] / d_out[t2])
+            delta += p.M[t1, t2] * log(p.M[t1, t2] / p.d_in[t1] / p.d_out[t2])
         end
     end
     # Sum over rows in old M
     for t1 in (r, s)
-        for t2 in findn(M[t1, :])
-            delta += M[t1, t2] * log(M[t1, t2] / d_in[t1] / d_out[t2])
+        for t2 in findn(p.M[t1, :])
+            delta += p.M[t1, t2] * log(p.M[t1, t2] / p.d_in[t1] / p.d_out[t2])
         end
     end
     #println("Delta: $delta")
@@ -179,8 +178,8 @@ function compute_overall_entropy(
 end
 
 function compute_hastings_correction(
-        s::Int64, M::Array{Int64, 2}, M_r_row::Vector{Int64},
-        M_r_col::Vector{Int64}, B::Int64, d::Vector{Int64}, d_new::Vector{Int64},
+        s::Int64, p::Partition{Array{Int64, 2}}, M_r_row::Vector{Int64},
+        M_r_col::Vector{Int64}, d_new::Vector{Int64},
         blocks_out_count_map, blocks_in_count_map
     )
     blocks = Set(keys(blocks_out_count_map)) ∪ Set(keys(blocks_in_count_map))
@@ -188,8 +187,8 @@ function compute_hastings_correction(
     p_backward = 0.0
     for t in blocks
         degree = get(blocks_out_count_map, t, 0) + get(blocks_in_count_map, t, 0)
-        p_forward += degree * (M[t, s] + M[s, t] + 1) / (d[t] + B)
-        p_backward += degree * (M_r_row[t] + M_r_col[t] + 1) / (d_new[t] + B)
+        p_forward += degree * (p.M[t, s] + p.M[s, t] + 1) / (p.d[t] + p.B)
+        p_backward += degree * (M_r_row[t] + M_r_col[t] + 1) / (d_new[t] + p.B)
     end
     return p_backward / p_forward
 end
