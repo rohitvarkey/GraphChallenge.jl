@@ -386,5 +386,5 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     end
 
     println("Best partition :", best_partitions[1].b, "Num blocks : ", best_partitions[1].B)
-    partition
+    best_partitions[1]
 end
