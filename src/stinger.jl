@@ -49,14 +49,17 @@ function initialize_edge_counts(
     M
 end
 
-function compute_block_neighbors_and_degrees(M::InterblockEdgeCountStinger, block::Int64)
+function compute_block_neighbors_and_degrees(
+    p::Partition{InterblockEdgeCountStinger},
+    block::Int64
+    )
     neighbors = Set{Int64}()
-    k_in = M.self_edge_counts[block]
-    k_out = M.self_edge_counts[block]
-    if M.self_edge_counts[block] > 0
+    k_in = p.M.self_edge_counts[block]
+    k_out = p.M.self_edge_counts[block]
+    if p.M.self_edge_counts[block] > 0
         push!(neighbors, block)
     end
-    foralledges(M.s, block) do edge, src, etype
+    foralledges(p.M.s, block) do edge, src, etype
         direction, neighbor = edgeparse(edge)
         if direction != -1
             push!(neighbors, neighbor)
@@ -64,7 +67,7 @@ function compute_block_neighbors_and_degrees(M::InterblockEdgeCountStinger, bloc
                 k_out += edge.weight
             end
             if direction != 2
-                k_in += edgeweight(M.s, neighbor, block, 0)
+                k_in += edgeweight(p.M.s, neighbor, block, 0)
             end
         end
     end
@@ -72,7 +75,10 @@ function compute_block_neighbors_and_degrees(M::InterblockEdgeCountStinger, bloc
 end
 
 
-function compute_block_degrees(M::InterblockEdgeCountStinger, B::Int64)
+function compute_block_degrees(
+    M::InterblockEdgeCountStinger,
+    B::Int64
+    )
     # Sum across rows to get the outdegrees for each block
     d_out = copy(M.outdegrees)
     d_in = copy(M.indegrees)
@@ -81,24 +87,24 @@ function compute_block_degrees(M::InterblockEdgeCountStinger, B::Int64)
 end
 
 function compute_new_matrix(
-    M::InterblockEdgeCountStinger, r::Int64, s::Int64, num_blocks::Int64,
+    p::Partition{InterblockEdgeCountStinger}, r::Int64, s::Int64,
     out_block_count_map, in_block_count_map, self_edge_weight::Int64
     )
 
-    M_r_col = zeros(Int64, num_blocks)
-    M_r_row = zeros(Int64, num_blocks)
-    M_s_col = zeros(Int64, num_blocks)
-    M_s_row = zeros(Int64, num_blocks)
+    M_r_col = zeros(Int64, p.B)
+    M_r_row = zeros(Int64, p.B)
+    M_s_col = zeros(Int64, p.B)
+    M_s_row = zeros(Int64, p.B)
 
-    M_r_col[r] = M.self_edge_counts[r]
-    M_r_row[r] = M.self_edge_counts[r]
-    M_s_col[s] = M.self_edge_counts[s]
-    M_s_row[s] = M.self_edge_counts[s]
+    M_r_col[r] = p.M.self_edge_counts[r]
+    M_r_row[r] = p.M.self_edge_counts[r]
+    M_s_col[s] = p.M.self_edge_counts[s]
+    M_s_row[s] = p.M.self_edge_counts[s]
 
     #@show r, s
     #@show out_block_count_map
     #@show in_block_count_map
-    foralledges(M.s, r) do edge, src, etype
+    foralledges(p.M.s, r) do edge, src, etype
         direction, block = edgeparse(edge)
         # Move outgoing edges from r to s.
         if direction != -1
@@ -120,7 +126,7 @@ function compute_new_matrix(
             end
             if direction != 2
                 # in edge
-                M_r_row[block] += edgeweight(M.s, block, r, 0)
+                M_r_row[block] += edgeweight(p.M.s, block, r, 0)
                 if block in keys(in_block_count_map)
                     in_count = in_block_count_map[block]
                     #@show r, block, edgeweight(M.s, block, r, 0), in_count
@@ -155,13 +161,13 @@ function compute_new_matrix(
     end
 
     #@show M_r_row, M_r_col, M_s_row, M_s_col
-    foralledges(M.s, s) do edge, src, etype
+    foralledges(p.M.s, s) do edge, src, etype
         direction, block = edgeparse(edge)
         if direction != -1 && direction != 1
             M_s_col[block] += edge.weight
         end
         if direction != -1 && direction != 2
-            M_s_row[block] += edgeweight(M.s, block, s, 0)
+            M_s_row[block] += edgeweight(p.M.s, block, s, 0)
         end
     end
     #@show M_r_row, M_r_col, M_s_row, M_s_col
@@ -185,18 +191,18 @@ end
 """Computes the new rows and cols in `M`, when all nodes from `r` are shifted to
 block `s`."""
 function compute_new_matrix_agglomerative(
-    M::InterblockEdgeCountStinger, r::Int64, s::Int64, num_blocks::Int64
+    p::Partition{InterblockEdgeCountStinger}, r::Int64, s::Int64
     )
 
-    M_r_col = zeros(Int64, num_blocks)
-    M_r_row = zeros(Int64, num_blocks)
-    M_s_col = zeros(Int64, num_blocks)
-    M_s_row = zeros(Int64, num_blocks)
+    M_r_col = zeros(Int64, p.B)
+    M_r_row = zeros(Int64, p.B)
+    M_s_col = zeros(Int64, p.B)
+    M_s_row = zeros(Int64, p.B)
 
-    M_s_col[s] = M.self_edge_counts[s] + M.self_edge_counts[r]
-    M_s_row[s] = M.self_edge_counts[s] + M.self_edge_counts[r]
+    M_s_col[s] = p.M.self_edge_counts[s] + p.M.self_edge_counts[r]
+    M_s_row[s] = p.M.self_edge_counts[s] + p.M.self_edge_counts[r]
 
-    foralledges(M.s, s) do edge, src, etype
+    foralledges(p.M.s, s) do edge, src, etype
         direction, block = edgeparse(edge)
         if direction != -1 && direction != 1
             # out edges
@@ -208,11 +214,11 @@ function compute_new_matrix_agglomerative(
             end
         end
         if direction != -1 && direction != 2
-            M_s_row[block] += edgeweight(M.s, block, s, 0)
+            M_s_row[block] += edgeweight(p.M.s, block, s, 0)
         end
     end
 
-    foralledges(M.s, r) do edge, src, etype
+    foralledges(p.M.s, r) do edge, src, etype
         direction, block = edgeparse(edge)
         # Move outgoing edges from r to s.
         if direction != -1 && direction != 1
@@ -229,7 +235,7 @@ function compute_new_matrix_agglomerative(
         # Avoid double counting s->r.
         if direction != -1 && direction != 2 && block != s
             # in edge
-            M_s_row[block] += edgeweight(M.s, block, r, 0)
+            M_s_row[block] += edgeweight(p.M.s, block, r, 0)
         end
     end
 
@@ -241,10 +247,10 @@ end
 
 
 function compute_multinomial_probs(
-    M::InterblockEdgeCountStinger, degrees::Vector{Int64}, block::Int64
+    p::Partition{InterblockEdgeCountStinger}, block::Int64
     )
-    probabilities = zeros(length(degrees))
-    foralledges(M.s, block) do edge, src, etype
+    probabilities = zeros(length(p.d))
+    foralledges(p.M.s, block) do edge, src, etype
         direction, neighbor = edgeparse(edge)
         if direction != -1 && direction != 1
             # out edge
@@ -252,18 +258,17 @@ function compute_multinomial_probs(
         end
         if direction != -1 && direction != 2
             # in edge
-            probabilities[neighbor] += edgeweight(M.s, neighbor, block, 0)
+            probabilities[neighbor] += edgeweight(p.M.s, neighbor, block, 0)
         end
     end
-    probabilities[block] += M.self_edge_counts[block]
+    probabilities[block] += p.M.self_edge_counts[block]
     return probabilities
 end
 
 function compute_delta_entropy(
-    M::InterblockEdgeCountStinger, r::Int64, s::Int64,
+    p::Partition{InterblockEdgeCountStinger}, r::Int64, s::Int64,
     M_r_col::Array{Int64, 1}, M_s_col::Array{Int64, 1},
     M_r_row::Array{Int64, 1}, M_s_row::Array{Int64, 1},
-    d_out::Vector{Int64}, d_in::Vector{Int64},
     d_out_new::Vector{Int64}, d_in_new::Vector{Int64}
     )
     delta = 0.0
@@ -295,28 +300,28 @@ function compute_delta_entropy(
     end
     # Sum over edges in old M
     for block in (r, s)
-        foralledges(M.s, block) do edge, src, etype
+        foralledges(p.M.s, block) do edge, src, etype
             direction, neighbor = edgeparse(edge)
             if direction != -1 && direction != 1
                 # edge is block -> neighbor
                 #@show block, neighbor, edge.weight , d_in[neighbor] , d_out[block]
-                delta += edge.weight * log(edge.weight / d_in[neighbor] / d_out[block])
+                delta += edge.weight * log(edge.weight / p.d_in[neighbor] / p.d_out[block])
             end
             # Prevent double counting the r->s, s->r edges.
             if direction != -1 && direction != 2 && !((block, neighbor) == (r, s) || (block, neighbor) == (s, r))
                 # edge is neighbor -> block
-                edgecount = edgeweight(M.s, neighbor, block, 0)
+                edgecount = edgeweight(p.M.s, neighbor, block, 0)
                 #@show block, neighbor, edgecount , d_in[block] , d_out[neighbor]
-                delta += edgecount * log(edgecount / d_in[block] / d_out[neighbor])
+                delta += edgecount * log(edgecount / p.d_in[block] / p.d_out[neighbor])
             end
         end
     end
     #println("Delta: $delta
-    if M.self_edge_counts[s] > 0
-        delta += M.self_edge_counts[s] * log(M.self_edge_counts[s] / d_in[s] / d_out[s])
+    if p.M.self_edge_counts[s] > 0
+        delta += p.M.self_edge_counts[s] * log(p.M.self_edge_counts[s] / p.d_in[s] / p.d_out[s])
     end
-    if M.self_edge_counts[r] > 0
-        delta += M.self_edge_counts[r] * log(M.self_edge_counts[r] / d_in[r] / d_out[r])
+    if p.M.self_edge_counts[r] > 0
+        delta += p.M.self_edge_counts[r] * log(p.M.self_edge_counts[r] / p.d_in[r] / p.d_out[r])
     end
     delta
 end
@@ -348,15 +353,14 @@ end
 
 
 function compute_hastings_correction(
-        s::Int64, M::InterblockEdgeCountStinger, M_r_row::Vector{Int64},
-        M_r_col::Vector{Int64}, B::Int64, d::Vector{Int64},
-        d_new::Vector{Int64},
+        s::Int64, p::Partition{InterblockEdgeCountStinger}, M_r_row::Vector{Int64},
+        M_r_col::Vector{Int64}, d_new::Vector{Int64},
         blocks_out_count_map, blocks_in_count_map
     )
     blocks = Set(keys(blocks_out_count_map)) ∪ Set(keys(blocks_in_count_map))
     p_forward = 0.0
     p_backward = 0.0
-    foralledges(M.s, s) do edge, src, etype
+    foralledges(p.M.s, s) do edge, src, etype
         direction, t = edgeparse(edge)
         if t in blocks
             degree = get(blocks_out_count_map, t, 0) +
@@ -366,16 +370,16 @@ function compute_hastings_correction(
                 m += edge.weight
             end
             if direction != -1 && direction != 2
-                m += edgeweight(M.s, t, s, 0)
+                m += edgeweight(p.M.s, t, s, 0)
             end
-            p_forward += degree * (m + 1) / (d[t] + B)
-            p_backward += degree * (get(M_r_row, t, 0) + get(M_r_col, t, 0) + 1) / (d_new[t] + B)
+            p_forward += degree * (m + 1) / (p.d[t] + p.B)
+            p_backward += degree * (get(M_r_row, t, 0) + get(M_r_col, t, 0) + 1) / (d_new[t] + p.B)
         end
     end
     degree = get(blocks_out_count_map, s, 0) +
         get(blocks_in_count_map, s, 0)
-    p_forward += degree * (M.self_edge_counts[s] + 1) / (d[s] + B)
-    p_backward += degree * (get(M_r_row, s, 0) + get(M_r_col, s, 0) + 1) / (d_new[s] + B)
+    p_forward += degree * (p.M.self_edge_counts[s] + 1) / (p.d[s] + p.B)
+    p_backward += degree * (get(M_r_row, s, 0) + get(M_r_col, s, 0) + 1) / (d_new[s] + p.B)
     return p_backward / p_forward
 end
 
@@ -487,7 +491,6 @@ function update_partition(
         #@show s, idx, M_s_row[idx], edgeweight(M.s, idx, s, 0)
     end
     #println("Updated partition")
-
     M
 end
 

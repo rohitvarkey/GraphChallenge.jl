@@ -381,10 +381,9 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
         old_overall_entropy = [x.S for x in best_partitions]
         if optimal_num_blocks_found == true
             println("Final partition: ", new_partition)
+            println("Best partition :", new_partition.b, "Num blocks : ", new_partition.B)
+            return new_partition
         end
         current_partition = new_partition
     end
-
-    println("Best partition :", best_partitions[1].b, "Num blocks : ", best_partitions[1].B)
-    best_partitions[1]
 end
