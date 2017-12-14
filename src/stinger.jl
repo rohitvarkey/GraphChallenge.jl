@@ -60,6 +60,7 @@ function compute_block_neighbors_and_degrees(
         push!(neighbors, block)
     end
     foralledges(p.M.s, block) do edge, src, etype
+        p.count_log.edges_traversed += 1
         direction, neighbor = edgeparse(edge)
         if direction != -1
             push!(neighbors, neighbor)
@@ -105,6 +106,7 @@ function compute_new_matrix(
     #@show out_block_count_map
     #@show in_block_count_map
     foralledges(p.M.s, r) do edge, src, etype
+        p.count_log.edges_traversed += 1
         direction, block = edgeparse(edge)
         # Move outgoing edges from r to s.
         if direction != -1
@@ -162,6 +164,7 @@ function compute_new_matrix(
 
     #@show M_r_row, M_r_col, M_s_row, M_s_col
     foralledges(p.M.s, s) do edge, src, etype
+        p.count_log.edges_traversed += 1
         direction, block = edgeparse(edge)
         if direction != -1 && direction != 1
             M_s_col[block] += edge.weight
@@ -203,6 +206,7 @@ function compute_new_matrix_agglomerative(
     M_s_row[s] = p.M.self_edge_counts[s] + p.M.self_edge_counts[r]
 
     foralledges(p.M.s, s) do edge, src, etype
+        p.count_log.edges_traversed += 1
         direction, block = edgeparse(edge)
         if direction != -1 && direction != 1
             # out edges
@@ -219,6 +223,7 @@ function compute_new_matrix_agglomerative(
     end
 
     foralledges(p.M.s, r) do edge, src, etype
+        p.count_log.edges_traversed += 1
         direction, block = edgeparse(edge)
         # Move outgoing edges from r to s.
         if direction != -1 && direction != 1
@@ -251,6 +256,7 @@ function compute_multinomial_probs(
     )
     probabilities = zeros(length(p.d))
     foralledges(p.M.s, block) do edge, src, etype
+        p.count_log.edges_traversed += 1
         direction, neighbor = edgeparse(edge)
         if direction != -1 && direction != 1
             # out edge
@@ -301,6 +307,7 @@ function compute_delta_entropy(
     # Sum over edges in old M
     for block in (r, s)
         foralledges(p.M.s, block) do edge, src, etype
+            p.count_log.edges_traversed += 1
             direction, neighbor = edgeparse(edge)
             if direction != -1 && direction != 1
                 # edge is block -> neighbor
@@ -333,6 +340,7 @@ function compute_overall_entropy(
     summation_term = 0.0
     for block=1:B
         foralledges(M.s, block) do edge, src, etype
+            #p.count_log.edges_traversed += 1
             direction, neighbor = edgeparse(edge)
             if direction != -1 && direction != 1
                 edgecount = edge.weight
@@ -361,6 +369,7 @@ function compute_hastings_correction(
     p_forward = 0.0
     p_backward = 0.0
     foralledges(p.M.s, s) do edge, src, etype
+        p.count_log.edges_traversed += 1
         direction, t = edgeparse(edge)
         if t in blocks
             degree = get(blocks_out_count_map, t, 0) +
@@ -407,6 +416,7 @@ function update_partition(
 
     # Updating edges that already exist
     foralledges(M.s, r) do edge, src, etype
+        #p.count_log.edges_traversed += 1
         direction, neighbor = edgeparse(edge)
         #@show direction, neighbor, edge.weight, edgeweight(M.s, 0, neighbor, r)
         if direction != -1 && direction != 1 && neighbor != r
@@ -436,6 +446,7 @@ function update_partition(
     end
 
     foralledges(M.s, s) do edge, src, etype
+        #p.count_log.edges_traversed += 1
         direction, neighbor = edgeparse(edge)
         if direction != -1 && direction != 1 && neighbor != s
             if neighbor != r

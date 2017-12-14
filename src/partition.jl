@@ -54,7 +54,7 @@ function agglomerative_updates{T}(
         num_blocks, num_blocks_to_merge
     )
 
-    Partition(T, p.g, b, num_blocks - num_blocks_to_merge)
+    Partition(T, p.g, b, num_blocks - num_blocks_to_merge, count_log = p.count_log)
 end
 
 function prepare_for_partition_on_next_num_blocks{T}(
