@@ -51,7 +51,8 @@ end
 
 function compute_block_neighbors_and_degrees(
     p::Partition{InterblockEdgeCountStinger},
-    block::Int64
+    block::Int64,
+    count_log::CountLog
     )
     neighbors = Set{Int64}()
     k_in = p.M.self_edge_counts[block]
@@ -60,7 +61,7 @@ function compute_block_neighbors_and_degrees(
         push!(neighbors, block)
     end
     foralledges(p.M.s, block) do edge, src, etype
-        p.count_log.edges_traversed += 1
+        count_log.edges_traversed += 1
         direction, neighbor = edgeparse(edge)
         if direction != -1
             push!(neighbors, neighbor)
@@ -78,7 +79,8 @@ end
 
 function compute_block_degrees(
     M::InterblockEdgeCountStinger,
-    B::Int64
+    B::Int64,
+    count_log::CountLog
     )
     # Sum across rows to get the outdegrees for each block
     d_out = copy(M.outdegrees)
@@ -89,7 +91,8 @@ end
 
 function compute_new_matrix(
     p::Partition{InterblockEdgeCountStinger}, r::Int64, s::Int64,
-    out_block_count_map, in_block_count_map, self_edge_weight::Int64
+    out_block_count_map, in_block_count_map, self_edge_weight::Int64,
+    count_log::CountLog
     )
 
     M_r_col = zeros(Int64, p.B)
@@ -106,7 +109,7 @@ function compute_new_matrix(
     #@show out_block_count_map
     #@show in_block_count_map
     foralledges(p.M.s, r) do edge, src, etype
-        p.count_log.edges_traversed += 1
+        count_log.edges_traversed += 1
         direction, block = edgeparse(edge)
         # Move outgoing edges from r to s.
         if direction != -1
@@ -164,7 +167,7 @@ function compute_new_matrix(
 
     #@show M_r_row, M_r_col, M_s_row, M_s_col
     foralledges(p.M.s, s) do edge, src, etype
-        p.count_log.edges_traversed += 1
+        count_log.edges_traversed += 1
         direction, block = edgeparse(edge)
         if direction != -1 && direction != 1
             M_s_col[block] += edge.weight
@@ -194,7 +197,7 @@ end
 """Computes the new rows and cols in `M`, when all nodes from `r` are shifted to
 block `s`."""
 function compute_new_matrix_agglomerative(
-    p::Partition{InterblockEdgeCountStinger}, r::Int64, s::Int64
+    p::Partition{InterblockEdgeCountStinger}, r::Int64, s::Int64, count_log::CountLog
     )
 
     M_r_col = zeros(Int64, p.B)
@@ -206,7 +209,7 @@ function compute_new_matrix_agglomerative(
     M_s_row[s] = p.M.self_edge_counts[s] + p.M.self_edge_counts[r]
 
     foralledges(p.M.s, s) do edge, src, etype
-        p.count_log.edges_traversed += 1
+        count_log.edges_traversed += 1
         direction, block = edgeparse(edge)
         if direction != -1 && direction != 1
             # out edges
@@ -223,7 +226,7 @@ function compute_new_matrix_agglomerative(
     end
 
     foralledges(p.M.s, r) do edge, src, etype
-        p.count_log.edges_traversed += 1
+        count_log.edges_traversed += 1
         direction, block = edgeparse(edge)
         # Move outgoing edges from r to s.
         if direction != -1 && direction != 1
@@ -252,11 +255,11 @@ end
 
 
 function compute_multinomial_probs(
-    p::Partition{InterblockEdgeCountStinger}, block::Int64
+    p::Partition{InterblockEdgeCountStinger}, block::Int64, count_log::CountLog
     )
     probabilities = zeros(length(p.d))
     foralledges(p.M.s, block) do edge, src, etype
-        p.count_log.edges_traversed += 1
+        count_log.edges_traversed += 1
         direction, neighbor = edgeparse(edge)
         if direction != -1 && direction != 1
             # out edge
@@ -275,7 +278,7 @@ function compute_delta_entropy(
     p::Partition{InterblockEdgeCountStinger}, r::Int64, s::Int64,
     M_r_col::Array{Int64, 1}, M_s_col::Array{Int64, 1},
     M_r_row::Array{Int64, 1}, M_s_row::Array{Int64, 1},
-    d_out_new::Vector{Int64}, d_in_new::Vector{Int64}
+    d_out_new::Vector{Int64}, d_in_new::Vector{Int64}, count_log::CountLog
     )
     delta = 0.0
     # Sum over col of r in new M
@@ -307,7 +310,7 @@ function compute_delta_entropy(
     # Sum over edges in old M
     for block in (r, s)
         foralledges(p.M.s, block) do edge, src, etype
-            p.count_log.edges_traversed += 1
+            count_log.edges_traversed += 1
             direction, neighbor = edgeparse(edge)
             if direction != -1 && direction != 1
                 # edge is block -> neighbor
@@ -335,12 +338,12 @@ end
 
 function compute_overall_entropy(
         M::InterblockEdgeCountStinger, d_out::Vector{Int64}, d_in::Vector{Int64},
-        B::Int64, N::Int64, E::Int64
+        B::Int64, N::Int64, E::Int64, count_log::CountLog
     )
     summation_term = 0.0
     for block=1:B
         foralledges(M.s, block) do edge, src, etype
-            #p.count_log.edges_traversed += 1
+            count_log.edges_traversed += 1
             direction, neighbor = edgeparse(edge)
             if direction != -1 && direction != 1
                 edgecount = edge.weight
@@ -363,13 +366,13 @@ end
 function compute_hastings_correction(
         s::Int64, p::Partition{InterblockEdgeCountStinger}, M_r_row::Vector{Int64},
         M_r_col::Vector{Int64}, d_new::Vector{Int64},
-        blocks_out_count_map, blocks_in_count_map
+        blocks_out_count_map, blocks_in_count_map, count_log::CountLog
     )
     blocks = Set(keys(blocks_out_count_map)) ∪ Set(keys(blocks_in_count_map))
     p_forward = 0.0
     p_backward = 0.0
     foralledges(p.M.s, s) do edge, src, etype
-        p.count_log.edges_traversed += 1
+        count_log.edges_traversed += 1
         direction, t = edgeparse(edge)
         if t in blocks
             degree = get(blocks_out_count_map, t, 0) +
@@ -395,7 +398,7 @@ end
 function update_partition(
     M::InterblockEdgeCountStinger, r::Int64, s::Int64,
     M_r_col::Vector{Int64}, M_s_col::Vector{Int64},
-    M_r_row::Vector{Int64}, M_s_row::Vector{Int64}
+    M_r_row::Vector{Int64}, M_s_row::Vector{Int64}, count_log::CountLog
     )
     #println("Updating partition for $r, $s")
 
@@ -416,7 +419,7 @@ function update_partition(
 
     # Updating edges that already exist
     foralledges(M.s, r) do edge, src, etype
-        #p.count_log.edges_traversed += 1
+        count_log.edges_traversed += 1
         direction, neighbor = edgeparse(edge)
         #@show direction, neighbor, edge.weight, edgeweight(M.s, 0, neighbor, r)
         if direction != -1 && direction != 1 && neighbor != r
@@ -426,9 +429,11 @@ function update_partition(
             end
             if M_r_col[neighbor] == 0
                 remove_edge!(M.s, 0, r, neighbor)
+                count_log.edges_deleted += 1
             else
                 insert_edge!(M.s, 0, r, neighbor, M_r_col[neighbor], 1)
                 M_r_col[neighbor] = 0
+                count_log.edges_updated += 1
             end
         end
         if direction != -1 && direction != 2 && neighbor != r
@@ -438,15 +443,17 @@ function update_partition(
             end
             if M_r_row[neighbor] == 0
                 remove_edge!(M.s, 0, neighbor, r)
+                count_log.edges_deleted += 1
             else
                 insert_edge!(M.s, 0, neighbor, r, M_r_row[neighbor], 1)
                 M_r_row[neighbor] = 0
+                count_log.edges_updated += 1
             end
         end
     end
 
     foralledges(M.s, s) do edge, src, etype
-        #p.count_log.edges_traversed += 1
+        count_log.edges_traversed += 1
         direction, neighbor = edgeparse(edge)
         if direction != -1 && direction != 1 && neighbor != s
             if neighbor != r
@@ -454,9 +461,11 @@ function update_partition(
             end
             if M_s_col[neighbor] == 0
                 remove_edge!(M.s, 0, s, neighbor)
+                count_log.edges_deleted += 1
             else
                 insert_edge!(M.s, 0, s, neighbor, M_s_col[neighbor], 1)
                 M_s_col[neighbor] = 0
+                count_log.edges_updated += 1
             end
         end
         if direction != -1 && direction != 2 && neighbor != s
@@ -465,8 +474,10 @@ function update_partition(
             end
             if M_s_row[neighbor] == 0
                 remove_edge!(M.s, 0, neighbor, s)
+                count_log.edges_deleted += 1
             else
                 insert_edge!(M.s, 0, neighbor, s, M_s_row[neighbor], 1)
+                count_log.edges_updated += 1
                 M_s_row[neighbor] = 0
             end
         end
@@ -475,6 +486,7 @@ function update_partition(
     # Adding new edges
     for idx in findn(M_r_col)
         insert_edge!(M.s, 0, r, idx, M_r_col[idx], 1)
+        count_log.edges_inserted += 1
         if idx != s
             M.indegrees[idx] += M_r_col[idx]
         end
@@ -482,6 +494,7 @@ function update_partition(
     end
     for idx in findn(M_r_row)
         insert_edge!(M.s, 0, idx, r, M_r_row[idx], 1)
+        count_log.edges_inserted += 1
         if idx != s
             M.outdegrees[idx] += M_r_row[idx]
         end
@@ -489,6 +502,7 @@ function update_partition(
     end
     for idx in findn(M_s_col)
         insert_edge!(M.s, 0, s, idx, M_s_col[idx], 1)
+        count_log.edges_inserted += 1
         if idx != r
             M.indegrees[idx] += M_s_col[idx]
         end
@@ -496,6 +510,7 @@ function update_partition(
     end
     for idx in findn(M_s_row)
         insert_edge!(M.s, 0, idx, s, M_s_row[idx], 1)
+        count_log.edges_inserted += 1
         if idx != r
             M.outdegrees[idx] += M_s_row[idx]
         end

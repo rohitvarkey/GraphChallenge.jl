@@ -1,7 +1,7 @@
 import Base: copy, show
 
 type CountLog
-    edges_added::Int64
+    edges_inserted::Int64
     edges_deleted::Int64
     edges_updated::Int64
     edges_traversed::Int64
@@ -28,9 +28,9 @@ function Partition(
     count_log = CountLog()
     )
     M = initialize_edge_counts(T, g, num_blocks, b)
-    d_out, d_in, d = compute_block_degrees(M, num_blocks)
+    d_out, d_in, d = compute_block_degrees(M, num_blocks, count_log)
     overall_entropy::Float64 = compute_overall_entropy(
-        M, d_out, d_in, num_blocks, nv(g), ne(g)
+        M, d_out, d_in, num_blocks, nv(g), ne(g), count_log
     )
     Partition(M, g, overall_entropy, b, d, d_out, d_in, num_blocks, count_log)
 end

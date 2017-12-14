@@ -25,7 +25,7 @@ function carry_out_best_merges(
 end
 
 function agglomerative_updates{T}(
-    p::Partition{T}, num_blocks_to_merge::Int64;
+    p::Partition{T}, num_blocks_to_merge::Int64, count_log::CountLog;
     num_agg_proposals_per_block::Int64 = 10,
     num_block_reduction_rate::Float64 = 0.5
     )
@@ -34,12 +34,12 @@ function agglomerative_updates{T}(
     delta_entropy_for_each_block = fill(Inf, num_blocks)
     for current_block = 1:num_blocks
         neighbors, k_out, k_in, k = compute_block_neighbors_and_degrees(
-            p, current_block
+            p, current_block, count_log
         )
         for proposal_idx = 1:num_agg_proposals_per_block
-            proposal = propose_new_partition_agg(p, current_block, neighbors)
+            proposal = propose_new_partition_agg(p, current_block, neighbors, count_log)
             Δ = evaluate_proposal_agg(
-                p, current_block, proposal, k, k_in, k_out
+                p, current_block, proposal, k, k_in, k_out, count_log
             )
             if Δ < delta_entropy_for_each_block[current_block]
                 best_merge_for_each_block[current_block] = proposal
@@ -54,7 +54,7 @@ function agglomerative_updates{T}(
         num_blocks, num_blocks_to_merge
     )
 
-    Partition(T, p.g, b, num_blocks - num_blocks_to_merge, count_log = p.count_log)
+    Partition(T, p.g, b, num_blocks - num_blocks_to_merge)
 end
 
 function prepare_for_partition_on_next_num_blocks{T}(
@@ -105,7 +105,7 @@ function prepare_for_partition_on_next_num_blocks{T}(
 end
 
 function propose_new_partition_agg{T}(
-    p::Partition{T}, r::Int64, neighbors::Vector{Int64}
+    p::Partition{T}, r::Int64, neighbors::Vector{Int64}, count_log::CountLog
     )
     # Pick a neighbor randomly
     if length(neighbors) == 0
@@ -122,7 +122,7 @@ function propose_new_partition_agg{T}(
         pop!(candidates, r)
         s = sample(collect(candidates))
     else
-        multinomial_prob = compute_multinomial_probs(p, u)
+        multinomial_prob = compute_multinomial_probs(p, u, count_log)
         multinomial_prob[r] = 0
         if sum(multinomial_prob) == 0
             candidates = Set(1:p.B)
@@ -140,6 +140,7 @@ end
 
 function propose_new_partition_nodal{T}(
     p::Partition{T}, r::Int64, neighbors::Vector{Int64}, wts::Vector{Int64},
+    count_log::CountLog
     )
 
     # Pick a neighbor randomly
@@ -155,7 +156,7 @@ function propose_new_partition_nodal{T}(
         pop!(candidates, r)
         s = sample(collect(candidates))
     else
-        multinomial_prob = compute_multinomial_probs(p, u)
+        multinomial_prob = compute_multinomial_probs(p, u, count_log)
         #multinomial_prob[r] = 0
         if sum(multinomial_prob) == 0
             candidates = Set(1:B)
@@ -172,28 +173,31 @@ function propose_new_partition_nodal{T}(
 end
 
 function evaluate_proposal_agg{T}(
-    p::Partition{T}, r::Int64, s::Int64, k::Int64, k_in::Int64, k_out::Int64
+    p::Partition{T}, r::Int64, s::Int64, k::Int64, k_in::Int64, k_out::Int64,
+    count_log::CountLog
     )
     M_r_row, M_r_col, M_s_row, M_s_col =
-        compute_new_matrix_agglomerative(p, r, s)
+        compute_new_matrix_agglomerative(p, r, s, count_log)
     new_degrees = [copy(degrees) for degrees in [p.d_out, p.d_in, p.d]]
     for (new_d, degree) in zip(new_degrees, [k_out, k_in, k])
         new_d[r] -= degree
         new_d[s] += degree
     end
     compute_delta_entropy(
-        p, r, s, M_r_col, M_s_col, M_r_row, M_s_row, new_degrees[1], new_degrees[2]
+        p, r, s, M_r_col, M_s_col, M_r_row, M_s_row, new_degrees[1], new_degrees[2],
+        count_log
     )
 end
 
 function evaluate_nodal_proposal{T}(
     p::Partition{T}, r::Int64, s::Int64,β::Int64,
     k::Int64, k_in::Int64, k_out::Int64, self_edge_weight::Int64,
-    blocks_out_count_map, blocks_in_count_map
+    blocks_out_count_map, blocks_in_count_map, count_log
     )
 
     M_r_row, M_r_col, M_s_row, M_s_col = compute_new_matrix(
-        p, r, s, blocks_out_count_map, blocks_in_count_map, self_edge_weight
+        p, r, s, blocks_out_count_map, blocks_in_count_map, self_edge_weight,
+        count_log
     )
 
     new_degrees = [copy(degrees) for degrees in [p.d_out, p.d_in, p.d]]
@@ -204,12 +208,13 @@ function evaluate_nodal_proposal{T}(
 
     hastings_correction = compute_hastings_correction(
         s, p, M_r_row, M_r_col, new_degrees[3],
-        blocks_out_count_map, blocks_in_count_map
+        blocks_out_count_map, blocks_in_count_map,
+        count_log
     )
 
     Δ = compute_delta_entropy(
             p, r, s, M_r_col, M_s_col, M_r_row, M_s_row,
-            new_degrees[1], new_degrees[2]
+            new_degrees[1], new_degrees[2], count_log
         )
 
     p_accept = min(exp(-β * Δ) * hastings_correction, 1)
@@ -221,13 +226,13 @@ end
 
 function update_partition{T}(
     p::Partition{T}, current_node::Int64, r::Int64, s::Int64, M_r_col::Vector{Int64},
-    M_s_col::Vector{Int64}, M_r_row::Vector{Int64}, M_s_row::Vector{Int64}
+    M_s_col::Vector{Int64}, M_r_row::Vector{Int64}, M_s_row::Vector{Int64}, count_log
     )
-    p.M = update_partition(p.M, r, s, M_r_col, M_s_col, M_r_row, M_s_row)
+    p.M = update_partition(p.M, r, s, M_r_col, M_s_col, M_r_row, M_s_row, count_log)
     p.b[current_node] = s
-    p.d_out, p.d_in, p.d = compute_block_degrees(p.M, p.B)
+    p.d_out, p.d_in, p.d = compute_block_degrees(p.M, p.B, count_log)
     p.S = compute_overall_entropy(
-        p.M, p.d_out, p.d_in, p.B, nv(p.g), ne(p.g)
+        p.M, p.d_out, p.d_in, p.B, nv(p.g), ne(p.g), count_log
     )
     p
 end
@@ -267,6 +272,9 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
 
     old_overall_entropy = [Inf, Inf, Inf]
     best_partitions = Vector{Partition{T}}(3)
+
+    count_log = CountLog()
+
     for i=1:3
         #Create dummy partitions
         best_partitions[i] = Partition(
@@ -290,7 +298,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     while optimal_num_blocks_found == false
         println("Merging down from $(current_partition.B) to $(current_partition.B - num_blocks_to_merge)")
         current_partition = agglomerative_updates(
-            current_partition, num_blocks_to_merge;
+            current_partition, num_blocks_to_merge, count_log;
             num_agg_proposals_per_block = num_agg_proposals_per_block
         )
 
@@ -312,7 +320,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                 ]
                 proposal = propose_new_partition_nodal(
                     current_partition, current_block, vcat(out_n, in_n),
-                    vcat(out_wts, in_wts)
+                    vcat(out_wts, in_wts), count_log
                 )
                 #println("proposal: $proposal, current:$current_block")
                 if (proposal != current_block)
@@ -335,7 +343,8 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                     evaluate_nodal_proposal(
                         current_partition, current_block, proposal, β,
                         k_in + k_out, k_in, k_out, self_edge_weight,
-                        blocks_out_count_map, blocks_in_count_map
+                        blocks_out_count_map, blocks_in_count_map,
+                        count_log
                     )
                     random_value = rand(Uniform())
                     if random_value <= p_accept
@@ -344,7 +353,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                         nodal_itr_delta_entropy[nodal_itr] += Δ
                         current_partition = update_partition(
                             current_partition, current_node, current_block, proposal,
-                            M_r_col, M_s_col, M_r_row, M_s_row
+                            M_r_col, M_s_col, M_r_row, M_s_row, count_log
                         )
                         #d_out, d_in, d = compute_block_degrees(M, num_blocks)
                         #partition[current_node] = proposal
@@ -378,11 +387,13 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                 current_partition, best_partitions, num_block_reduction_rate
             )
 
+        @show count_log
+        
         old_overall_entropy = [x.S for x in best_partitions]
         if optimal_num_blocks_found == true
             println("Final partition: ", new_partition)
             println("Best partition :", new_partition.b, "Num blocks : ", new_partition.B)
-            return new_partition
+            return new_partition, count_log
         end
         current_partition = new_partition
     end
