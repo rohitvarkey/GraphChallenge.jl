@@ -13,7 +13,7 @@ Calculates the new interblock_matrix edge count matrix.
 """
 function initialize_edge_counts!(
     M::InterblockEdgeCountStinger, g::SimpleWeightedDiGraph, B::Int64,
-    b::Vector{Int64}
+    b::Vector{Int64}, count_log::CountLog
     )
     #TODO: Optimize this by using batch insertions.
     edge_counts = Dict{Pair{Int64, Int64}, Int64}()
@@ -29,23 +29,25 @@ function initialize_edge_counts!(
         else
             # Do not add self edges to stinger
             insert_edge!(M.s, 0, s, d, edgecount, 1)
+            count_log.edges_inserted += 1
         end
     end
     #@show sum(M.indegrees)
     #@show sum(M.outdegrees)
+    @show count_log
     M
 end
 
 function initialize_edge_counts(
     _::Type{InterblockEdgeCountStinger}, g::SimpleWeightedDiGraph, B::Int64,
-    b::Vector{Int64}
+    b::Vector{Int64}, count_log::CountLog
     )
     nebs = ceil(Int64, B/14) * B
     M = InterblockEdgeCountStinger(
         Stinger(stingerconfig(B + 1, nebs = nebs * 2)), # To prevent off by one errors
         zeros(Int64, B), zeros(Int64, B), zeros(Int64, B)
     )
-    initialize_edge_counts!(M, g, B, b)
+    initialize_edge_counts!(M, g, B, b, count_log)
     M
 end
 

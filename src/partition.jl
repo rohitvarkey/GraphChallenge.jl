@@ -54,7 +54,7 @@ function agglomerative_updates{T}(
         num_blocks, num_blocks_to_merge
     )
 
-    Partition(T, p.g, b, num_blocks - num_blocks_to_merge)
+    Partition(T, p.g, b, num_blocks - num_blocks_to_merge, count_log = count_log)
 end
 
 function prepare_for_partition_on_next_num_blocks{T}(
@@ -286,7 +286,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
             zeros(Int64, 0),
             zeros(Int64, 0),
             typemax(Int64),
-            CountLog()
+            count_log
         )
     end
 
@@ -388,7 +388,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
             )
 
         @show count_log
-        
+
         old_overall_entropy = [x.S for x in best_partitions]
         if optimal_num_blocks_found == true
             println("Final partition: ", new_partition)
