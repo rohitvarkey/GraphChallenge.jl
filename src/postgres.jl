@@ -104,8 +104,8 @@ function compute_block_neighbors_and_degrees(
         Set(skipmissing(out_neighbors[:dst_block])) ∪
         Set(skipmissing(in_neighbors[:src_block]))
     )
-    k_in = sum(out_neighbors[:edgecount])
-    k_out = sum(in_neighbors[:edgecount])
+    k_out = sum(out_neighbors[:edgecount])
+    k_in = sum(in_neighbors[:edgecount])
     k = k_out + k_in
     neighbors, k_out, k_in, k
 end
@@ -228,18 +228,20 @@ function compute_new_matrix_agglomerative(
             execute(p.M.conn, "SELECT src_block, edgecount FROM edgelist WHERE dst_block = $block and block_num=$(p.B);")
         )
         for (dst_block, edgecount) in zip(out_neighbors[:dst_block], out_neighbors[:edgecount])
-            if dst_block == r
+            M_s_col[dst_block] += edgecount
+            # s->r , r->r
+            if dst_block == r && block == r
                 M_s_row[s] += edgecount
-            else
-                M_s_col[dst_block] += edgecount
+                M_s_col[s] += edgecount
+            elseif dst_block == r && block == s
+                M_s_col[s] += edgecount
+            elseif dst_block == s && block == r
+                M_s_row[s] += edgecount
             end
         end
         for (src_block, edgecount) in zip(in_neighbors[:src_block], in_neighbors[:edgecount])
-            if src_block == r
-                M_s_row[s] += edgecount
-            else
-                M_s_row[src_block] += edgecount
-            end
+            # r->s , r->r
+            M_s_row[src_block] += edgecount
         end
     end
 
@@ -400,6 +402,64 @@ function compute_hastings_correction(
         p_backward += degree * (M_r_row[t] + M_r_col[t] + 1) / (d_new[t] + p.B)
     end
     return p_backward / p_forward
+end
+
+function update_partition(
+    M::InterblockEdgeCountPostgres, r::Int64, s::Int64,
+    M_r_col::Vector{Int64}, M_s_col::Vector{Int64},
+    M_r_row::Vector{Int64}, M_s_row::Vector{Int64},
+    count_log::CountLog
+    )
+    B = length(M_r_col)
+    execute(
+        M.conn,
+        """
+        DELETE FROM edgelist WHERE src_block in ($r, $s) or dst_block in ($r, $s) and block_num=$B;
+        """
+    )
+
+    total_edges = sum(length.(findn.([M_r_col, M_r_row, M_s_col, M_s_row])))
+    block_nums = fill(B, total_edges)
+    src_blocks = zeros(Int64, total_edges)
+    dst_blocks = zeros(Int64, total_edges)
+    edgecounts = zeros(Int64, total_edges)
+
+    counter = 0
+    for dst_block in findn(M_r_col)
+        counter += 1
+        src_blocks[counter] = r
+        dst_blocks[counter] = dst_block
+        edgecounts[counter] = M_r_col[dst_block]
+    end
+    for dst_block in findn(M_s_col)
+        counter += 1
+        src_blocks[counter] = s
+        dst_blocks[counter] = dst_block
+        edgecounts[counter] = M_s_col[dst_block]
+    end
+    for src_block in findn(M_r_row)
+        counter += 1
+        src_blocks[counter] = src_block
+        dst_blocks[counter] = r
+        edgecounts[counter] = M_r_row[src_block]
+    end
+    for src_block in findn(M_s_row)
+        counter += 1
+        src_blocks[counter] = src_block
+        dst_blocks[counter] = s
+        edgecounts[counter] = M_s_row[src_block]
+    end
+
+    data = edgelist_tuple(block_nums, src_blocks, dst_blocks, edgecounts)
+
+    stmt = Data.stream!(
+        data,
+        Statement,
+        M.conn,
+        "INSERT INTO edgelist VALUES (\$1, \$2, \$3, \$4);",
+    )
+    #info("Updated partition")
+    M
 end
 
 function zeros_interblock_edge_matrix(::Type{InterblockEdgeCountPostgres},

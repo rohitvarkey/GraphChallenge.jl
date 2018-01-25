@@ -10,6 +10,9 @@ function test_initialize_counts(M::InterblockEdgeCountStinger, g::SimpleWeighted
 end
 
 function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountStinger})
+
+    g = load_graph(50)
+
     block_out_edges = Dict(
         1 => Dict(1=>8, 2=>2, 3=>4),
         2 => Dict(1=>3, 2=>9, 3=>12),
@@ -42,8 +45,19 @@ function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountStinger
     @show M
     r = 1
     s = 2
+    p = Partition(
+        M,
+        g,
+        Inf,
+        zeros(Int64, 0),
+        zeros(Int64, 0),
+        zeros(Int64, 0),
+        zeros(Int64, 0),
+        3,
+        CountLog()
+    )
     @show M_r_row, M_r_col, M_s_row, M_s_col =
-        compute_new_matrix_agglomerative(M, r, s, 3)
+        compute_new_matrix_agglomerative(p, r, s, CountLog())
     @test M_r_row == [0, 0, 0]
     @test M_r_col == [0, 0, 0]
     @test M_s_row == [0, 22, 11]
@@ -51,6 +65,9 @@ function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountStinger
 end
 
 function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
+
+    g = load_graph(50)
+    
     block_out_edges = Dict(
         1 => Dict(1=>8, 2=>2, 3=>4),
         2 => Dict(1=>3, 2=>9, 3=>12),
@@ -81,6 +98,23 @@ function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
         M.self_edge_counts[i] = block_out_edges[i][i]
     end
     @show M
+
+    @show d_out, d_in, d = compute_block_degrees(M, 3, CountLog())
+    @show overall_entropy = compute_overall_entropy(
+        M, d_out, d_in, 3, 3, sum(d), CountLog()
+    )
+
+    p = Partition(
+        M,
+        g,
+        Inf,
+        collect(1:3),
+        d,
+        d_out,
+        d_in,
+        3,
+        CountLog()
+    )
 
     r = 1
     s = 2
@@ -91,28 +125,23 @@ function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
         1=>2, 2=>1, 3=>2
     )
     M_r_row, M_r_col, M_s_row, M_s_col =
-        compute_new_matrix(M, r, s, 3, block_out_count_map, block_in_count_map, 0)
+        compute_new_matrix(p, r, s, block_out_count_map, block_in_count_map, 0, CountLog())
     @test M_r_row == [5, 3, 3]
     @test M_r_col == [5, 2, 1]
     @test M_s_row == [2, 12, 8]
     @test M_s_col == [3, 12, 15]
 
-    @show d_out, d_in, d = compute_block_degrees(M, 3)
-    @show overall_entropy = compute_overall_entropy(
-        M, d_out, d_in, 3, 3, sum(d)
-    )
-
     M = update_partition(
         M, r, s,
-        M_r_col, M_s_col, M_r_row, M_s_row
+        M_r_col, M_s_col, M_r_row, M_s_row, CountLog()
     )
 
     @test M.self_edge_counts == [5, 12, 10]
     @test M.outdegrees == [5+2+1, 3+12+15, 5+6+10]
     @test M.indegrees == [5+3+3, 2+12+8, 4+12+10]
 
-    @show d_out, d_in, d = compute_block_degrees(M, 3)
+    @show d_out, d_in, d = compute_block_degrees(M, 3, CountLog())
     @show overall_entropy = compute_overall_entropy(
-        M, d_out, d_in, 3, 3, sum(d)
+        M, d_out, d_in, 3, 3, sum(d), CountLog()
     )
 end

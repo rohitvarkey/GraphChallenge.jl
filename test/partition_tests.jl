@@ -6,12 +6,13 @@ import GraphChallenge: compute_block_neighbors_and_degrees,
                        compute_delta_entropy,
                        carry_out_best_merges,
                        update_partition,
-                       compute_overall_entropy
+                       compute_overall_entropy,
+                       CountLog
 
 import StingerGraphs: Stinger
 
 function test_compute_block_degrees(M, g::SimpleWeightedDiGraph, num_nodes::Int64)
-    d_out, d_in, d = compute_block_degrees(M, num_nodes)
+    d_out, d_in, d = compute_block_degrees(M, num_nodes, CountLog())
     for v in vertices(g)
         @test LightGraphs.outdegree(g, v) == d_out[v]
         @test LightGraphs.indegree(g, v) == d_in[v]
@@ -21,22 +22,24 @@ end
 
 
 @testset "Initialization" begin
-    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict,
-        InterblockEdgeCountVectorDict, InterblockEdgeCountStinger)
+    for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
+        #Array{Int64, 2}, InterblockEdgeCountDictDict,
+        #InterblockEdgeCountVectorDict,
+        )
         println("Testing for: $T")
         num_nodes = 50
         g = load_graph(50)
         M = initialize_edge_counts(
-            T, g, num_nodes, collect(1:num_nodes)
+            T, g, num_nodes, collect(1:num_nodes), CountLog()
         )
 
         test_initialize_counts(M, g)
         test_compute_block_degrees(M, g, num_nodes)
-        @show d_out, d_in, d = compute_block_degrees(M, 50)
+        @show d_out, d_in, d = compute_block_degrees(M, 50, CountLog())
 
         # compute the global entropy for MCMC convergence criterion
         @show overall_entropy = compute_overall_entropy(
-            M, d_out, d_in, 50, nv(g), ne(g)
+            M, d_out, d_in, 50, nv(g), ne(g), CountLog()
         )
 
         @test round(overall_entropy,11)  == 7547.63915522856
@@ -64,22 +67,25 @@ function test_carry_out_best_merges()
 end
 
 @testset "Agglomerative step" begin
-    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict,
-        InterblockEdgeCountVectorDict, InterblockEdgeCountStinger)
+    for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres
+        #Array{Int64, 2}, InterblockEdgeCountDictDict,
+        #InterblockEdgeCountVectorDict, InterblockEdgeCountStinger
+        )
         println("Testing for: $T")
         test_compute_new_matrix_agglomerative(T)
         num_nodes = 50
         g = load_graph(50)
         block_partition = collect(1:num_nodes)
         M = initialize_edge_counts(
-            T, g, num_nodes, block_partition
+            T, g, num_nodes, block_partition, CountLog()
         )
-        d_out, d_in, d = compute_block_degrees(M, num_nodes)
+        d_out, d_in, d = compute_block_degrees(M, num_nodes, CountLog())
         current_block = 1
         num_blocks = num_nodes
         new_num_blocks = floor(Int64, 0.5 * num_nodes)
+        p = Partition(M, g, Inf, block_partition, d, d_out, d_in, num_nodes, CountLog())
         block_neighbors, k_out, k_in, k = compute_block_neighbors_and_degrees(
-            M, current_block
+            p, current_block, CountLog()
         )
 
         @test Set(all_neighbors(g, current_block)) == Set(block_neighbors)
@@ -90,8 +96,7 @@ end
         srand(42) #Seed the RNG
 
         proposal = propose_new_partition_agg(
-            M, current_block, block_partition, num_blocks,
-            d, block_neighbors
+            p, current_block, block_neighbors, CountLog()
         )
         @test proposal == 22
 
@@ -99,8 +104,7 @@ end
         proposal = 2
 
         Δ = evaluate_proposal_agg(
-            M, current_block, proposal, num_blocks, d, d_in, d_out,
-            k, k_in, k_out
+            p, current_block, proposal, k, k_in, k_out, CountLog()
         )
         @test round(Δ, 8) == round(12.922923932215921, 8)
 
@@ -120,8 +124,7 @@ end
 
         for (del, n) in zip(dels, sort(collect(all_neighbors(g, current_block))))
             Δ = evaluate_proposal_agg(
-                M, current_block, n, num_blocks, d, d_in, d_out,
-                k, k_in, k_out
+                p, current_block, n, k, k_in, k_out, CountLog()
             )
             @test round(Δ, 8) == round(del, 8)
         end
@@ -130,8 +133,10 @@ end
 end
 
 @testset "Nodal step" begin
-    for T in (Array{Int64, 2}, InterblockEdgeCountDictDict,
-        InterblockEdgeCountVectorDict, InterblockEdgeCountStinger)
+    for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
+    #Array{Int64, 2}, InterblockEdgeCountDictDict,
+    #InterblockEdgeCountVectorDict, InterblockEdgeCountStinger
+    )
         println("Testing for: $T")
         test_compute_new_matrix(T)
     end
