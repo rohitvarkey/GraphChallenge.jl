@@ -418,39 +418,29 @@ function update_partition(
         """
     )
 
-    total_edges = sum(length.(findn.([M_r_col, M_r_row, M_s_col, M_s_row])))
-    block_nums = fill(B, total_edges)
-    src_blocks = zeros(Int64, total_edges)
-    dst_blocks = zeros(Int64, total_edges)
-    edgecounts = zeros(Int64, total_edges)
-
-    counter = 0
+    edges_to_insert = Set{NTuple{4,Int32}}()
     for dst_block in findn(M_r_col)
-        counter += 1
-        src_blocks[counter] = r
-        dst_blocks[counter] = dst_block
-        edgecounts[counter] = M_r_col[dst_block]
+        push!(edges_to_insert, (B, r, dst_block, M_r_col[dst_block]))
     end
     for dst_block in findn(M_s_col)
-        counter += 1
-        src_blocks[counter] = s
-        dst_blocks[counter] = dst_block
-        edgecounts[counter] = M_s_col[dst_block]
+        push!(edges_to_insert, (B, s, dst_block, M_s_col[dst_block]))
     end
     for src_block in findn(M_r_row)
-        counter += 1
-        src_blocks[counter] = src_block
-        dst_blocks[counter] = r
-        edgecounts[counter] = M_r_row[src_block]
+        push!(edges_to_insert, (B, src_block, r, M_r_row[src_block]))
     end
     for src_block in findn(M_s_row)
-        counter += 1
-        src_blocks[counter] = src_block
-        dst_blocks[counter] = s
-        edgecounts[counter] = M_s_row[src_block]
+        push!(edges_to_insert, (B, src_block, s, M_s_row[src_block]))
     end
 
+    edges = collect(edges_to_insert)
+    total_block_edges = 0
+    # Calculate edge block counts.
+    block_nums = fill(B, length(edges))
+    src_blocks = [edge[2] for edge in edges]
+    dst_blocks = [edge[3] for edge in edges]
+    edgecounts = [edge[4] for edge in edges]
     data = edgelist_tuple(block_nums, src_blocks, dst_blocks, edgecounts)
+    #info("Updated partition")
 
     stmt = Data.stream!(
         data,
@@ -458,7 +448,6 @@ function update_partition(
         M.conn,
         "INSERT INTO edgelist VALUES (\$1, \$2, \$3, \$4);",
     )
-    #info("Updated partition")
     M
 end
 
