@@ -318,7 +318,7 @@ function compute_delta_entropy(
         NamedTuple,
         execute(p.M.conn, """
         SELECT src_block, dst_block, edgecount FROM edgelist WHERE
-        block_num=$(p.B) and src_block IN ($r, $s) or dst_block IN ($r, $s);
+        block_num=$(p.B) and (src_block IN ($r, $s) or dst_block IN ($r, $s));
         """
         )
     )
@@ -414,7 +414,7 @@ function update_partition(
     execute(
         M.conn,
         """
-        DELETE FROM edgelist WHERE src_block in ($r, $s) or dst_block in ($r, $s) and block_num=$B;
+        DELETE FROM edgelist WHERE (src_block in ($r, $s) or dst_block in ($r, $s)) and block_num=$B;
         """
     )
 
