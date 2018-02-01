@@ -10,9 +10,11 @@ function initialize_edge_counts!(
     )
     @assert size(M) == (B, B)
     for edge in edges(g)
+        if M[b[dst(edge)], b[src(edge)]] == 0
+            count_log.edges_inserted += 1
+        end
         M[b[dst(edge)], b[src(edge)]] += weight(edge)
     end
-    count_log.edges_inserted += ne(g)
 end
 
 function compute_block_neighbors_and_degrees(
@@ -26,7 +28,7 @@ function compute_block_neighbors_and_degrees(
     k_in = sum(p.M[block, in_neighbors])
     k_out = sum(p.M[out_neighbors, block])
     k = k_out + k_in
-    count_log.edges_traversed += length(out_neighbors) + length(in_neighbors)
+    count_log.edges_traversed += (size(p.M, 1) + size(p.M, 2))
     neighbors, k_out, k_in, k
 end
 
@@ -37,6 +39,7 @@ function compute_block_degrees(M::Array{Int64, 2}, B::Int64, count_log::CountLog
     # Sum across cols to get the indegrees for each block
     d_in = reshape(sum(M, 2), B)
     d = d_out + d_in
+    count_log.edges_traversed += (size(M, 1) + size(M, 2))
     return d_out, d_in, d
 end
 
@@ -98,6 +101,7 @@ function compute_new_matrix_agglomerative(
     p::Partition{Array{Int64, 2}}, r::Int64, s::Int64, count_log::CountLog
     )
 
+    #TODO: Figure out how to count edges traversed here.
     M_r_row = zeros(Int64, p.B)
     M_r_col = zeros(Int64, p.B)
 
@@ -120,6 +124,7 @@ end
 function compute_multinomial_probs(
     p::Partition{Array{Int64, 2}}, vertex::Int64, count_log::CountLog
     )
+    count_log.edges_traversed += (size(p.M, 1) + size(p.M, 2))
     return (p.M[:, vertex] .+ p.M[vertex, :]) ./ p.d[vertex]
 end
 
@@ -156,6 +161,7 @@ function compute_delta_entropy(
     for t2 in (r, s)
         for t1 in findn(p.M[:, t2])
             # Skip if t1 is r or s to prevent double counting
+            count_log.edges_traversed += 1
             if t1 ∈ (r, s)
                 continue
             end
@@ -165,6 +171,7 @@ function compute_delta_entropy(
     # Sum over rows in old M
     for t1 in (r, s)
         for t2 in findn(p.M[t1, :])
+            count_log.edges_traversed += 1
             delta += p.M[t1, t2] * log(p.M[t1, t2] / p.d_in[t1] / p.d_out[t2])
         end
     end
@@ -185,6 +192,7 @@ function compute_overall_entropy(
     model_S = E * (1 + model_S_term) * log(1 + model_S_term) -
         model_S_term * log(model_S_term) + N*log(B)
     S = model_S + summation_term
+    count_log.edges_traversed += size(M, 1) * size(M, 2)
     return S
 end
 
@@ -201,6 +209,7 @@ function compute_hastings_correction(
         p_forward += degree * (p.M[t, s] + p.M[s, t] + 1) / (p.d[t] + p.B)
         p_backward += degree * (M_r_row[t] + M_r_col[t] + 1) / (d_new[t] + p.B)
     end
+    count_log.edges_traversed += length(blocks)
     return p_backward / p_forward
 end
 
@@ -213,6 +222,7 @@ function update_partition(
     M[r, :] = M_r_row
     M[:, s] = M_s_col
     M[s, :] = M_s_row
+    count_log.edges_updated = (size(M, 1) + size(M, 2)) * 2
     #info("Updated partition")
     M
 end
