@@ -23,7 +23,7 @@ end
 
 @testset "Initialization" begin
     for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
-        #Array{Int64, 2}, InterblockEdgeCountDictDict,
+        Array{Int64, 2}#, InterblockEdgeCountDictDict,
         #InterblockEdgeCountVectorDict,
         )
         println("Testing for: $T")
@@ -67,9 +67,9 @@ function test_carry_out_best_merges()
 end
 
 @testset "Agglomerative step" begin
-    for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres
-        #Array{Int64, 2}, InterblockEdgeCountDictDict,
-        #InterblockEdgeCountVectorDict, InterblockEdgeCountStinger
+    for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
+        Array{Int64, 2}#, InterblockEdgeCountDictDict,
+        #InterblockEdgeCountVectorDict
         )
         println("Testing for: $T")
         test_compute_new_matrix_agglomerative(T)
@@ -134,7 +134,7 @@ end
 
 @testset "Nodal step" begin
     for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
-    #Array{Int64, 2}, InterblockEdgeCountDictDict,
+    Array{Int64, 2}, #InterblockEdgeCountDictDict,
     #InterblockEdgeCountVectorDict, InterblockEdgeCountStinger
     )
         println("Testing for: $T")
