@@ -284,7 +284,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
 
     count_log = CountLog()
 
-    @show config = initial_setup(T)
+    config = initial_setup(T)
 
     for i=1:3
         #Create dummy partitions
