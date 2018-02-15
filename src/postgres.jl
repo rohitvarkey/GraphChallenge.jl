@@ -24,9 +24,19 @@ function initial_setup(T::Type{InterblockEdgeCountPostgres})
         block   integer NOT NULL
     );
     """
+
+    src_block_index_stmt = """CREATE INDEX src_block_index on edgelist(src_block);"""
+    dst_block_index_stmt = """CREATE INDEX dst_block_index on edgelist(dst_block);"""
+    block_num_index_stmt = """CREATE INDEX block_num_index on edgelist(block_num);"""
     execute(conn, "DROP TABLE IF EXISTS edgelist, blockmap;")
-    execute(conn, edgelist_create_stmt)
-    execute(conn, blockmap_create_stmt)
+    execute(conn, "DROP INDEX IF EXISTS src_block_index, dst_block_index, block_num_index;")
+
+    for stmt in [
+        edgelist_create_stmt, src_block_index_stmt, dst_block_index_stmt,
+        block_num_index_stmt
+    ]
+        execute(conn, stmt)
+    end
 
     return conn
 end
