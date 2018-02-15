@@ -26,6 +26,6 @@ function bench(
     )
     metrics = run_benchmarks(types, num_nodes, seed)
     df = convert(DataFrame, metrics)
-    CSV.write("$(output_prefix)_$(Dates.now())", df)
+    CSV.write("$(output_prefix)_$(Dates.now()).csv", df)
     df
 end
