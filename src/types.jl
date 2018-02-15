@@ -1,4 +1,4 @@
-import Base: copy, show
+import Base: copy, show, convert
 
 using DataFrames
 
@@ -62,11 +62,11 @@ show(io::IO, p::Partition) = print(io, "Partition(", p.S, "," , p.B, ",", sort(u
 abstract type Metrics end
 
 immutable CorrectnessMetrics <: Metrics
-    accuracy::Int64
-    pairwise_precision::Int64
-    pairwise_recall::Int64
-    adj_rand_index::Int64
-    rand_index::Int64
+    accuracy::Float64
+    pairwise_precision::Float64
+    pairwise_recall::Float64
+    adj_rand_index::Float64
+    rand_index::Float64
 end
 
 immutable PerformanceMetrics <: Metrics
@@ -78,13 +78,21 @@ end
 
 immutable BenchmarkMetrics <: Metrics
     T::DataType
+    nv::Int64
+    ne::Int64
+    nb::Int64
     performance::PerformanceMetrics
     correctness::CorrectnessMetrics
     count_log::CountLog
 end
 
-function convert(T::Type{DataFrame}, results::Vector{BenchmarkMetrics})
-    df = DataFrame(Type = [result.T for T in results])
+function convert(::Type{DataFrame}, results::Vector{BenchmarkMetrics})
+    df = DataFrame(
+        Type = [result.T for result in results],
+        num_nodes = [result.nv for result in results],
+        num_edges = [result.ne for result in results],
+        num_blocks = [result.nb for result in results]
+    )
     for sub_metric in [:performance, :correctness, :count_log]
         t = fieldtype(BenchmarkMetrics, sub_metric)
         for field in fieldnames(t)

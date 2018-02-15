@@ -9,6 +9,9 @@ function static_partition_experiment(T::Type, num_nodes::Int64; plot_file="block
     correctness_metrics = evaluate_partition(truth, p.b)
     m = BenchmarkMetrics(
         T,
+        nv(g),
+        ne(g),
+        p.B,
         PerformanceMetrics(t, bytes, gctime, memallocs.allocd),
         correctness_metrics,
         count_log
