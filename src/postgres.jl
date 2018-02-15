@@ -6,31 +6,30 @@ const edgelist_tuple = @NT(block_num::Array{Int32}, src_block::Array{Int32}, dst
 
 immutable InterblockEdgeCountPostgres
     conn::Connection
-
-    function InterblockEdgeCountPostgres(;dbname::String="rohitvarkey")
-        conn = Connection("dbname=$dbname")
-        edgelist_create_stmt = """CREATE TABLE edgelist (
-            block_num   integer NOT NULL,
-            src_block   integer NOT NULL,
-            dst_block   integer NOT NULL,
-            edgecount   integer NOT NULL
-        );
-        """
-        blockmap_create_stmt = """CREATE TABLE blockmap (
-            block_num   integer NOT NULL,
-            vertexid   integer NOT NULL,
-            block   integer NOT NULL
-        );
-        """
-        execute(conn, "DROP TABLE IF EXISTS edgelist, blockmap;")
-        execute(conn, edgelist_create_stmt)
-        execute(conn, blockmap_create_stmt)
-
-        new(conn)
-    end
 end
 
+function initial_setup(T::Type{InterblockEdgeCountPostgres})
+    dbname = "rohitvarkey"
+    conn = Connection("dbname=$dbname")
+    edgelist_create_stmt = """CREATE TABLE edgelist (
+        block_num   integer NOT NULL,
+        src_block   integer NOT NULL,
+        dst_block   integer NOT NULL,
+        edgecount   integer NOT NULL
+    );
+    """
+    blockmap_create_stmt = """CREATE TABLE blockmap (
+        block_num   integer NOT NULL,
+        vertexid   integer NOT NULL,
+        block   integer NOT NULL
+    );
+    """
+    execute(conn, "DROP TABLE IF EXISTS edgelist, blockmap;")
+    execute(conn, edgelist_create_stmt)
+    execute(conn, blockmap_create_stmt)
 
+    return conn
+end
 
 function initialize_edge_counts!(
     M::InterblockEdgeCountPostgres, g::SimpleWeightedDiGraph, B::Int64,
@@ -82,9 +81,9 @@ end
 
 function initialize_edge_counts(
     _::Type{InterblockEdgeCountPostgres}, g::SimpleWeightedDiGraph, B::Int64,
-    b::Vector{Int64}, count_log::CountLog
+    b::Vector{Int64}, conn::Connection, count_log::CountLog
     )
-    M = InterblockEdgeCountPostgres()
+    M = InterblockEdgeCountPostgres(conn)
     initialize_edge_counts!(M, g, B, b, count_log)
     M
 end
@@ -452,6 +451,6 @@ function update_partition(
 end
 
 function zeros_interblock_edge_matrix(::Type{InterblockEdgeCountPostgres},
-    size::Int64)
-    return InterblockEdgeCountPostgres()
+    size::Int64, conn)
+    return InterblockEdgeCountPostgres(conn)
 end

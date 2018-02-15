@@ -23,8 +23,21 @@ type Partition{T}
     count_log::CountLog
 end
 
+
 function Partition(
-    T, g::SimpleWeightedDiGraph, b::Vector{Int64}, num_blocks::Int64;
+    T, g::SimpleWeightedDiGraph, b::Vector{Int64}, num_blocks::Int64, config;
+    count_log = CountLog()
+    )
+    M = initialize_edge_counts(T, g, num_blocks, b, config, count_log)
+    d_out, d_in, d = compute_block_degrees(M, num_blocks, count_log)
+    overall_entropy::Float64 = compute_overall_entropy(
+        M, d_out, d_in, num_blocks, nv(g), ne(g), count_log
+    )
+    Partition(M, g, overall_entropy, b, d, d_out, d_in, num_blocks, count_log)
+end
+
+function Partition(
+    T, g::SimpleWeightedDiGraph, b::Vector{Int64}, num_blocks::Int64, config::Void;
     count_log = CountLog()
     )
     M = initialize_edge_counts(T, g, num_blocks, b, count_log)

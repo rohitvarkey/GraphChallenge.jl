@@ -1,3 +1,12 @@
+# Fall through
+function initial_setup(x)
+    nothing
+end
+
+function zeros_interblock_edge_matrix(M, size, config::Void)
+    zeros_interblock_edge_matrix(M, size)
+end
+
 function carry_out_best_merges(
     delta_entropy_for_each_block::Vector{Float64},
     best_merge_for_each_block::Vector{Int64},
@@ -25,7 +34,7 @@ function carry_out_best_merges(
 end
 
 function agglomerative_updates{T}(
-    p::Partition{T}, num_blocks_to_merge::Int64, count_log::CountLog;
+    p::Partition{T}, num_blocks_to_merge::Int64, config, count_log::CountLog;
     num_agg_proposals_per_block::Int64 = 10,
     num_block_reduction_rate::Float64 = 0.5
     )
@@ -54,7 +63,7 @@ function agglomerative_updates{T}(
         num_blocks, num_blocks_to_merge
     )
 
-    Partition(T, p.g, b, num_blocks - num_blocks_to_merge, count_log = count_log)
+    Partition(T, p.g, b, num_blocks - num_blocks_to_merge, config, count_log = count_log)
 end
 
 function prepare_for_partition_on_next_num_blocks{T}(
@@ -275,10 +284,12 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
 
     count_log = CountLog()
 
+    @show config = initial_setup(T)
+
     for i=1:3
         #Create dummy partitions
         best_partitions[i] = Partition(
-            zeros_interblock_edge_matrix(T, nv(g)),
+            zeros_interblock_edge_matrix(T, nv(g), config),
             g,
             Inf,
             zeros(Int64, 0),
@@ -290,7 +301,8 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
         )
     end
 
-    current_partition = Partition(T, g, b, length(b))
+
+    current_partition = Partition(T, g, b, length(b), config)
 
     optimal_num_blocks_found = false
     num_blocks_to_merge = ceil(Int64, num_blocks * num_block_reduction_rate)
@@ -298,7 +310,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     while optimal_num_blocks_found == false
         println("Merging down from $(current_partition.B) to $(current_partition.B - num_blocks_to_merge)")
         current_partition = agglomerative_updates(
-            current_partition, num_blocks_to_merge, count_log;
+            current_partition, num_blocks_to_merge, config, count_log;
             num_agg_proposals_per_block = num_agg_proposals_per_block
         )
 
