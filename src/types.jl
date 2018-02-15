@@ -1,5 +1,7 @@
 import Base: copy, show
 
+using DataFrames
+
 type CountLog
     edges_inserted::Int64
     edges_deleted::Int64
@@ -56,3 +58,38 @@ function copy(p::Partition)
 end
 
 show(io::IO, p::Partition) = print(io, "Partition(", p.S, "," , p.B, ",", sort(unique(p.b)),")")
+
+abstract type Metrics end
+
+immutable CorrectnessMetrics <: Metrics
+    accuracy::Int64
+    pairwise_precision::Int64
+    pairwise_recall::Int64
+    adj_rand_index::Int64
+    rand_index::Int64
+end
+
+immutable PerformanceMetrics <: Metrics
+    time::Float64
+    bytes::Int64
+    gctime::Float64
+    memallocd::Int64
+end
+
+immutable BenchmarkMetrics <: Metrics
+    T::DataType
+    performance::PerformanceMetrics
+    correctness::CorrectnessMetrics
+    count_log::CountLog
+end
+
+function convert(T::Type{DataFrame}, results::Vector{BenchmarkMetrics})
+    df = DataFrame(Type = [result.T for T in results])
+    for sub_metric in [:performance, :correctness, :count_log]
+        t = fieldtype(BenchmarkMetrics, sub_metric)
+        for field in fieldnames(t)
+            df[field] = [getfield(getfield(result, sub_metric), field) for result in results]
+        end
+    end
+    df
+end
