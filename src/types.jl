@@ -7,11 +7,12 @@ type CountLog
     edges_deleted::Int64
     edges_updated::Int64
     edges_traversed::Int64
+    edges_read::Int64
     degrees_read::Int64
     degrees_written::Int64
 end
 
-CountLog() = CountLog(0, 0, 0, 0, 0, 0)
+CountLog() = CountLog(0, 0, 0, 0, 0, 0, 0)
 
 type Partition{T}
     M::T

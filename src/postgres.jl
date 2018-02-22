@@ -2,7 +2,7 @@ using NamedTuples, DataStreams, LibPQ, Missings
 
 export InterblockEdgeCountPostgres
 
-const edgelist_tuple = @NT(block_num::Array{Int32}, src_block::Array{Int32}, dst_block::Array{Int32}, edgecount::Array{Int32})
+const EDGELIST_TUPLE = @NT(block_num::Array{Int32}, src_block::Array{Int32}, dst_block::Array{Int32}, edgecount::Array{Int32})
 
 immutable InterblockEdgeCountPostgres
     conn::Connection
@@ -28,14 +28,17 @@ function initial_setup(T::Type{InterblockEdgeCountPostgres})
     src_block_index_stmt = """CREATE INDEX src_block_index on edgelist(src_block);"""
     dst_block_index_stmt = """CREATE INDEX dst_block_index on edgelist(dst_block);"""
     block_num_index_stmt = """CREATE INDEX block_num_index on edgelist(block_num);"""
-    execute(conn, "DROP TABLE IF EXISTS edgelist, blockmap;")
-    execute(conn, "DROP INDEX IF EXISTS src_block_index, dst_block_index, block_num_index;")
+    result = execute(conn, "DROP TABLE IF EXISTS edgelist, blockmap;")
+    clear!(result)
+    result = execute(conn, "DROP INDEX IF EXISTS src_block_index, dst_block_index, block_num_index;")
+    clear!(result)
 
     for stmt in [
         edgelist_create_stmt, src_block_index_stmt, dst_block_index_stmt,
         block_num_index_stmt
     ]
-        execute(conn, stmt)
+        result = execute(conn, stmt)
+        clear!(result)
     end
 
     return conn
@@ -64,6 +67,8 @@ function initialize_edge_counts!(
         end
     end
 
+    count_log.edges_inserted += total_block_edges
+
     block_num = fill(Int32(B), total_block_edges)
     src_block = ones(Int32, total_block_edges)
     dst_block = ones(Int32, total_block_edges)
@@ -79,7 +84,7 @@ function initialize_edge_counts!(
         end
     end
 
-    data = edgelist_tuple(block_num, src_block, dst_block, edgecounts)
+    data = EDGELIST_TUPLE(block_num, src_block, dst_block, edgecounts)
 
     stmt = Data.stream!(
         data,
@@ -116,6 +121,10 @@ function compute_block_neighbors_and_degrees(
     k_out = sum(out_neighbors[:edgecount])
     k_in = sum(in_neighbors[:edgecount])
     k = k_out + k_in
+
+    count_log.edges_read += length(out_neighbors[:dst_block]) + length(in_neighbors[:src_block])
+    count_log.degrees_read += length(out_neighbors[:dst_block]) + length(in_neighbors[:src_block])
+
     neighbors, k_out, k_in, k
 end
 
@@ -180,6 +189,8 @@ function compute_new_matrix(
         for (src_block, edgecount) in zip(in_neighbors[:src_block], in_neighbors[:edgecount])
             row[src_block] = edgecount
         end
+
+        count_log.edges_read += length(out_neighbors[:dst_block]) + length(in_neighbors[:src_block])
     end
 
     for (block, out_count) in out_block_count_map
@@ -252,6 +263,7 @@ function compute_new_matrix_agglomerative(
             # r->s , r->r
             M_s_row[src_block] += edgecount
         end
+        count_log.edges_read += length(out_neighbors[:dst_block]) + length(in_neighbors[:src_block])
     end
 
     M_s_row[r] = 0
@@ -281,9 +293,10 @@ function compute_multinomial_probs(
     )
     probs = zeros(Int64, p.B)
     for counts in (out_counts, in_counts)
-        for (neighbor, edgecount) in zip(out_counts[:neighbor], counts[:edgecount])
+        for (neighbor, edgecount) in zip(counts[:neighbor], counts[:edgecount])
             probs[neighbor] += edgecount
         end
+        count_log.edges_read += length(counts[:neighbor])
     end
     return probs/p.d[vertex]
 end
@@ -331,6 +344,7 @@ function compute_delta_entropy(
         """
         )
     )
+    count_log.edges_read += length(edges_query[:src_block])
     for (src_block, dst_block, edgecount) in zip(
         edges_query[:src_block],
         edges_query[:dst_block],
@@ -354,6 +368,7 @@ function compute_overall_entropy(
         """
         )
     )
+    count_log.edges_read += length(edges_query[:src_block])
     for (src_block, dst_block, edgecount) in zip(
         edges_query[:src_block],
         edges_query[:dst_block],
@@ -402,8 +417,12 @@ function compute_hastings_correction(
     for (neighbor, edgecount) in zip(in_counts_query[:neighbor], in_counts_query[:edgecount])
         in_counts[neighbor] = edgecount
     end
+
+    count_log.edges_read += length(out_counts_query[:neighbor]) + length(in_counts_query[:neighbor])
+
     p_forward = 0.0
     p_backward = 0.0
+
     for t in blocks
         degree = get(blocks_out_count_map, t, 0) + get(blocks_in_count_map, t, 0)
         edgecounts = get(out_counts, t, 0) + get(in_counts, t, 0)
@@ -420,12 +439,16 @@ function update_partition(
     count_log::CountLog
     )
     B = length(M_r_col)
-    execute(
+    res = execute(
         M.conn,
         """
         DELETE FROM edgelist WHERE (src_block in ($r, $s) or dst_block in ($r, $s)) and block_num=$B;
         """
     )
+
+    count_log.edges_deleted += num_affected_rows(res)
+
+    clear!(res)
 
     edges_to_insert = Set{NTuple{4,Int32}}()
     for dst_block in findn(M_r_col)
@@ -448,7 +471,7 @@ function update_partition(
     src_blocks = [edge[2] for edge in edges]
     dst_blocks = [edge[3] for edge in edges]
     edgecounts = [edge[4] for edge in edges]
-    data = edgelist_tuple(block_nums, src_blocks, dst_blocks, edgecounts)
+    data = EDGELIST_TUPLE(block_nums, src_blocks, dst_blocks, edgecounts)
     #info("Updated partition")
 
     stmt = Data.stream!(
@@ -457,6 +480,9 @@ function update_partition(
         M.conn,
         "INSERT INTO edgelist VALUES (\$1, \$2, \$3, \$4);",
     )
+
+    count_log.edges_inserted += length(edges)
+
     M
 end
 
