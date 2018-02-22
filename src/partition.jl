@@ -234,8 +234,8 @@ function evaluate_nodal_proposal{T}(
 end
 
 function update_partition{T}(
-    p::Partition{T}, current_node::Int64, r::Int64, s::Int64, M_r_col::Vector{Int64},
-    M_s_col::Vector{Int64}, M_r_row::Vector{Int64}, M_s_row::Vector{Int64}, count_log
+    p::Partition{T}, current_node::Int64, r::Int64, s::Int64, M_r_col,
+    M_s_col, M_r_row, M_s_row, count_log
     )
     p.M = update_partition(p.M, r, s, M_r_col, M_s_col, M_r_row, M_s_row, count_log)
     p.b[current_node] = s
