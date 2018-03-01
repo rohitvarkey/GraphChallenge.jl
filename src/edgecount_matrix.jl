@@ -6,7 +6,7 @@ Returns a tuple of M, d_out, d_in, d
 function initalize_edge_counts(g::DiGraph, B::Int64, b::Vector{Int64})
     M = zeros(Int64, B, B) # create a zero matrix of B x B
     for v in 1:nv(g)
-        for n in out_neighbors(g, v)
+        for n in outneighbors(g, v)
             # Increment count by 1
             # NOTE: Column major instead of row major
             info("Incrementing M at ($(b[n]), $(b[v]) )")

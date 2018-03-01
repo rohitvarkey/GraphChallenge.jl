@@ -5,12 +5,12 @@ export InterblockEdgeCountPostgres
 const EDGELIST_TUPLE = @NT(block_num::Array{Int32}, src_block::Array{Int32}, dst_block::Array{Int32}, edgecount::Array{Int32})
 
 immutable InterblockEdgeCountPostgres
-    conn::Connection
+    conn::LibPQ.Connection
 end
 
 function initial_setup(T::Type{InterblockEdgeCountPostgres})
     dbname = "rohitvarkey"
-    conn = Connection("dbname=$dbname")
+    conn = LibPQ.Connection("dbname=$dbname")
     edgelist_create_stmt = """CREATE TABLE edgelist (
         block_num   integer NOT NULL,
         src_block   integer NOT NULL,
@@ -88,7 +88,7 @@ function initialize_edge_counts!(
 
     stmt = Data.stream!(
         data,
-        Statement,
+        LibPQ.Statement,
         M.conn,
         "INSERT INTO edgelist VALUES (\$1, \$2, \$3, \$4);",
     )
@@ -96,7 +96,7 @@ end
 
 function initialize_edge_counts(
     _::Type{InterblockEdgeCountPostgres}, g::SimpleWeightedDiGraph, B::Int64,
-    b::Vector{Int64}, conn::Connection, count_log::CountLog
+    b::Vector{Int64}, conn::LibPQ.Connection, count_log::CountLog
     )
     M = InterblockEdgeCountPostgres(conn)
     initialize_edge_counts!(M, g, B, b, count_log)
@@ -476,7 +476,7 @@ function update_partition(
 
     stmt = Data.stream!(
         data,
-        Statement,
+        LibPQ.Statement,
         M.conn,
         "INSERT INTO edgelist VALUES (\$1, \$2, \$3, \$4);",
     )

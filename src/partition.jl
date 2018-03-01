@@ -262,7 +262,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     num_blocks = nv(g)
     b = collect(1:num_blocks)
 
-    vertex_in_neighbors = in_neighbors(g)
+    vertex_in_neighbors = inneighbors(g)
 
     β = 3
     num_agg_proposals_per_block = 10 # number of proposals per block
@@ -322,7 +322,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
 
             for current_node::Int64 in vertices(g)
                 current_block = current_partition.b[current_node]
-                out_n = out_neighbors(g, current_node)
+                out_n = outneighbors(g, current_node)
                 in_n = vertex_in_neighbors[current_node]
                 out_wts = [
                     floor(Int64, get_weight(g, current_node, n)) for n in out_n
