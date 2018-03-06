@@ -23,15 +23,12 @@ function initial_setup(T::Type{InterblockEdgeCountSQLite})
     );
     """
 
-    # Clean up.
-    SQLite.drop!(db, "edgelist", ifexists=true)
-    SQLite.dropindex!(db, "src_block_index", ifexists=true)
     # Create table
     SQLite.execute!(db, edgelist_create_stmt)
     # Create indices.
-    SQLite.createindex!(db, "edgelist", "src_block_index", "src_block")
-    SQLite.createindex!(db, "edgelist", "dst_block_index", "dst_block")
-    SQLite.createindex!(db, "edgelist", "block_num_index", "block_num")
+    SQLite.createindex!(db, "edgelist", "src_block_index", "src_block", unique=false)
+    SQLite.createindex!(db, "edgelist", "dst_block_index", "dst_block", unique=false)
+    SQLite.createindex!(db, "edgelist", "block_num_index", "block_num", unique=false)
 
     return db
 end
@@ -51,10 +48,10 @@ function initialize_edge_counts!(
             if !(d in keys(block_edge_counts[s]))
                 total_block_edges += 1
             end
-            block_edge_counts[s][d] = get(block_edge_counts[s], d, 0) + 1
+            block_edge_counts[s][d] = get(block_edge_counts[s], d, 0) + weight(edge)
 
         else
-            block_edge_counts[s] = Dict(d=>1)
+            block_edge_counts[s] = Dict(d => weight(edge))
             total_block_edges += 1
         end
     end
