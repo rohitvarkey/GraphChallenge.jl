@@ -14,15 +14,15 @@ function initialize_edge_counts!(
     for edge in edges(g)
         s, d = b[src(edge)], b[dst(edge)]
         if s in keys(M.block_out_edges)
-            M.block_out_edges[s][d] = get(M.block_out_edges[s], d, 0) + 1
+            M.block_out_edges[s][d] = get(M.block_out_edges[s], d, 0) + weight(edge)
         else
-            M.block_out_edges[s] = Dict(d=>1)
+            M.block_out_edges[s] = Dict(d => weight(edge))
             count_log.edges_inserted += 1
         end
         if d in keys(M.block_in_edges)
-            M.block_in_edges[d][s] = get(M.block_in_edges[d], s, 0) + 1
+            M.block_in_edges[d][s] = get(M.block_in_edges[d], s, 0) + weight(edge)
         else
-            M.block_in_edges[d] = Dict(s=>1)
+            M.block_in_edges[d] = Dict(s => weight(edge))
             #TODO: Count this or not?
             count_log.edges_inserted += 1
         end

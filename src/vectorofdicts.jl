@@ -13,8 +13,8 @@ function initialize_edge_counts!(
     )
     for edge in edges(g)
         s, d = b[src(edge)], b[dst(edge)]
-        M.block_out_edges[s][d] = get(M.block_out_edges[s], d, 0) + 1
-        M.block_in_edges[d][s] = get(M.block_in_edges[d], s, 0) + 1
+        M.block_out_edges[s][d] = get(M.block_out_edges[s], d, 0) + weight(edge)
+        M.block_in_edges[d][s] = get(M.block_in_edges[d], s, 0) + weight(edge)
     end
     count_log.edges_inserted += 2 * length(edges(g))
     M

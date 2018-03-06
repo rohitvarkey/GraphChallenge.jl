@@ -31,7 +31,7 @@ end
 @testset "Initialization" begin
     for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
         Array{Int64, 2}, InterblockEdgeCountDictDict,
-        InterblockEdgeCountVectorDict,
+        InterblockEdgeCountVectorDict, #InterblockEdgeCountSQLite
         )
         println("Testing for: $T")
         num_nodes = 50
@@ -76,8 +76,8 @@ end
 
 @testset "Agglomerative step" begin
     for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
-        Array{Int64, 2}#, InterblockEdgeCountDictDict,
-        #InterblockEdgeCountVectorDict
+        Array{Int64, 2}, InterblockEdgeCountDictDict,
+        InterblockEdgeCountVectorDict, #InterblockEdgeCountSQLite
         )
         println("Testing for: $T")
         test_compute_new_matrix_agglomerative(T)
@@ -143,8 +143,9 @@ end
 
 @testset "Nodal step" begin
     for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
-    Array{Int64, 2}, #InterblockEdgeCountDictDict,
-    #InterblockEdgeCountVectorDict, InterblockEdgeCountStinger
+    Array{Int64, 2}, InterblockEdgeCountDictDict,
+    InterblockEdgeCountVectorDict, InterblockEdgeCountStinger,
+    #InterblockEdgeCountSQLite
     )
         println("Testing for: $T")
         test_compute_new_matrix(T)
