@@ -30,8 +30,8 @@ end
 
 @testset "Initialization" begin
     for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
-        Array{Int64, 2}#, InterblockEdgeCountDictDict,
-        #InterblockEdgeCountVectorDict,
+        Array{Int64, 2}, InterblockEdgeCountDictDict,
+        InterblockEdgeCountVectorDict,
         )
         println("Testing for: $T")
         num_nodes = 50
