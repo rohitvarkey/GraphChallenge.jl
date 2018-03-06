@@ -3,6 +3,9 @@ function initial_setup(x)
     nothing
 end
 
+function initialize_edge_counts(T, g, B, b, config, count_log)
+    initialize_edge_counts(T, g, B, b, count_log)
+end
 function zeros_interblock_edge_matrix(M, size, config::Void)
     zeros_interblock_edge_matrix(M, size)
 end

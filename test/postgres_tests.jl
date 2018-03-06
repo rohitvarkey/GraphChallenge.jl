@@ -23,39 +23,8 @@ function test_initialize_counts(M::InterblockEdgeCountPostgres, g::SimpleWeighte
 end
 
 function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountPostgres})
-    M = InterblockEdgeCountPostgres()
-    A = [8 3 5; 2 9 6; 4 12 10]
 
-    g = load_graph(50)
-
-    total_block_edges = 9
-    block_num = fill(Int32(3), total_block_edges)
-    src_block = ones(Int32, total_block_edges)
-    dst_block = ones(Int32, total_block_edges)
-    edgecounts = ones(Int32, total_block_edges)
-
-    counter = 0
-    for col in 1:3
-        for row in 1:3
-            counter += 1
-            src_block[counter] = col
-            dst_block[counter] = row
-            edgecounts[counter] = A[row, col]
-        end
-    end
-
-    data = GraphChallenge.edgelist_tuple(block_num, src_block, dst_block, edgecounts)
-
-    stmt = Data.stream!(
-        data,
-        Statement,
-        M.conn,
-        "INSERT INTO edgelist VALUES (\$1, \$2, \$3, \$4);",
-    )
-
-    d_out, d_in, d = compute_block_degrees(M, 3, CountLog())
-    p = Partition(M, g, Inf, collect(1:3), d, d_out, d_in, 3, CountLog())
-
+    p = test_partition(InterblockEdgeCountPostgres)
     r = 1
     s = 2
     M_r_row, M_r_col, M_s_row, M_s_col =
@@ -67,11 +36,7 @@ function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountPostgre
 end
 
 function test_compute_new_matrix(::Type{InterblockEdgeCountPostgres})
-    M = InterblockEdgeCountPostgres()
-    A = [8 3 5; 2 9 6; 4 12 10]
-
-    g = load_graph(50)
-
+    p = test_partition(InterblockEdgeCountPostgres)
     r = 1
     s = 2
     block_out_count_map = Dict(
@@ -80,38 +45,6 @@ function test_compute_new_matrix(::Type{InterblockEdgeCountPostgres})
     block_in_count_map = Dict(
         1=>2, 2=>1, 3=>2
     )
-
-    total_block_edges = 9
-    block_num = fill(Int32(3), total_block_edges)
-    src_block = ones(Int32, total_block_edges)
-    dst_block = ones(Int32, total_block_edges)
-    edgecounts = ones(Int32, total_block_edges)
-
-    counter = 0
-    for col in 1:3
-        for row in 1:3
-            counter += 1
-            src_block[counter] = col
-            dst_block[counter] = row
-            edgecounts[counter] = A[row, col]
-        end
-    end
-
-    data = GraphChallenge.edgelist_tuple(block_num, src_block, dst_block, edgecounts)
-
-    stmt = Data.stream!(
-        data,
-        Statement,
-        M.conn,
-        "INSERT INTO edgelist VALUES (\$1, \$2, \$3, \$4);",
-    )
-
-    @show d_out, d_in, d = compute_block_degrees(M, 3, CountLog())
-    @show overall_entropy = compute_overall_entropy(
-        M, d_out, d_in, 3, 3, sum(d), CountLog()
-    )
-    p = Partition(M, g, Inf, collect(1:3), d, d_out, d_in, 3, CountLog())
-
     M_r_row, M_r_col, M_s_row, M_s_col =
         compute_new_matrix(p, r, s, block_out_count_map, block_in_count_map, 0, CountLog())
     @test M_r_row == [5, 3, 3]
@@ -120,7 +53,7 @@ function test_compute_new_matrix(::Type{InterblockEdgeCountPostgres})
     @test M_s_col == [3, 12, 15]
 
     M = update_partition(
-        M, r, s,
+        p.M, r, s,
         M_r_col, M_s_col, M_r_row, M_s_row, CountLog()
     )
 

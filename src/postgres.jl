@@ -59,10 +59,10 @@ function initialize_edge_counts!(
             if !(d in keys(block_edge_counts[s]))
                 total_block_edges += 1
             end
-            block_edge_counts[s][d] = get(block_edge_counts[s], d, 0) + 1
+            block_edge_counts[s][d] = get(block_edge_counts[s], d, 0) + weight(edge)
 
         else
-            block_edge_counts[s] = Dict(d=>1)
+            block_edge_counts[s] = Dict(d=>get_weight(g, s, d))
             total_block_edges += 1
         end
     end

@@ -11,51 +11,9 @@ end
 
 function test_compute_new_matrix_agglomerative(::Type{InterblockEdgeCountStinger})
 
-    g = load_graph(50)
-
-    block_out_edges = Dict(
-        1 => Dict(1=>8, 2=>2, 3=>4),
-        2 => Dict(1=>3, 2=>9, 3=>12),
-        3 => Dict(1=>5, 2=>6, 3=>10)
-    )
-    block_in_edges = Dict(
-        1 => Dict(1=>8, 2=>3, 3=>5),
-        2 => Dict(1=>2, 2=>9, 3=>6),
-        3 => Dict(1=>4, 2=>12, 3=>10)
-    )
-    M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3), zeros(3), zeros(3))
-    for (src_block, edges) in block_out_edges
-        for (dst_block, edgecount) in edges
-            if src_block != dst_block
-                insert_edge!(M.s, 0, src_block, dst_block, edgecount, 1)
-            end
-        end
-    end
-
-    for (block, out_edges) in  block_out_edges
-        M.outdegrees[block] = sum(values(out_edges))
-    end
-    for (block, in_edges) in  block_in_edges
-        M.indegrees[block] = sum(values(in_edges))
-    end
-
-    for i=1:3
-        M.self_edge_counts[i] = block_out_edges[i][i]
-    end
-    @show M
+    p = test_partition(InterblockEdgeCountStinger)
     r = 1
     s = 2
-    p = Partition(
-        M,
-        g,
-        Inf,
-        zeros(Int64, 0),
-        zeros(Int64, 0),
-        zeros(Int64, 0),
-        zeros(Int64, 0),
-        3,
-        CountLog()
-    )
     @show M_r_row, M_r_col, M_s_row, M_s_col =
         compute_new_matrix_agglomerative(p, r, s, CountLog())
     @test M_r_row == [0, 0, 0]
@@ -66,55 +24,7 @@ end
 
 function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
 
-    g = load_graph(50)
-    
-    block_out_edges = Dict(
-        1 => Dict(1=>8, 2=>2, 3=>4),
-        2 => Dict(1=>3, 2=>9, 3=>12),
-        3 => Dict(1=>5, 2=>6, 3=>10)
-    )
-    block_in_edges = Dict(
-        1 => Dict(1=>8, 2=>3, 3=>5),
-        2 => Dict(1=>2, 2=>9, 3=>6),
-        3 => Dict(1=>4, 2=>12, 3=>10)
-    )
-    M = InterblockEdgeCountStinger(Stinger(stingerconfig(4)), zeros(3), zeros(3), zeros(3))
-    for (src_block, edges) in block_out_edges
-        for (dst_block, edgecount) in edges
-            if src_block != dst_block
-                insert_edge!(M.s, 0, src_block, dst_block, edgecount, 1)
-            end
-        end
-    end
-
-    for (block, out_edges) in  block_out_edges
-        M.outdegrees[block] = sum(values(out_edges))
-    end
-    for (block, in_edges) in  block_in_edges
-        M.indegrees[block] = sum(values(in_edges))
-    end
-
-    for i=1:3
-        M.self_edge_counts[i] = block_out_edges[i][i]
-    end
-    @show M
-
-    @show d_out, d_in, d = compute_block_degrees(M, 3, CountLog())
-    @show overall_entropy = compute_overall_entropy(
-        M, d_out, d_in, 3, 3, sum(d), CountLog()
-    )
-
-    p = Partition(
-        M,
-        g,
-        Inf,
-        collect(1:3),
-        d,
-        d_out,
-        d_in,
-        3,
-        CountLog()
-    )
+    p = test_partition(InterblockEdgeCountStinger)
 
     r = 1
     s = 2
@@ -132,7 +42,7 @@ function test_compute_new_matrix(::Type{InterblockEdgeCountStinger})
     @test M_s_col == [3, 12, 15]
 
     M = update_partition(
-        M, r, s,
+        p.M, r, s,
         M_r_col, M_s_col, M_r_row, M_s_row, CountLog()
     )
 

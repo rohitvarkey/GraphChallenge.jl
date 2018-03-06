@@ -19,9 +19,9 @@ function initialize_edge_counts!(
     edge_counts = Dict{Pair{Int64, Int64}, Int64}()
     for edge in edges(g)
         s, d = b[src(edge)], b[dst(edge)]
-        edge_counts[(s=>d)] = get(edge_counts, s=>d, 0) + 1
-        M.outdegrees[s] += 1
-        M.indegrees[d] += 1
+        edge_counts[(s=>d)] = get(edge_counts, s=>d, 0) + weight(edge)
+        M.outdegrees[s] += weight(edge)
+        M.indegrees[d] += weight(edge)
     end
     for ((s, d), edgecount) in edge_counts
         if s == d
