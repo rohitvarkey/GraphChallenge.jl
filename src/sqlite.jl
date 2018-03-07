@@ -144,7 +144,7 @@ function compute_block_degrees(M::InterblockEdgeCountSQLite, B::Int64, count_log
     end
 
     for row in eachrow(d_in_query)
-        d_out[row[:dst_block]] = row[:sum]
+        d_in[row[:dst_block]] = row[:sum]
     end
 
     d = d_out .+ d_in
@@ -458,9 +458,9 @@ function update_partition(
     dst_blocks = [edge[3] for edge in edges]
     edgecounts = [edge[4] for edge in edges]
     d = DataFrame(
-        block_num = block_num,
-        src_block = src_block,
-        dst_block = dst_block,
+        block_num = block_nums,
+        src_block = src_blocks,
+        dst_block = dst_blocks,
         edgecounts = edgecounts
     )
     #info("Updated partition")
