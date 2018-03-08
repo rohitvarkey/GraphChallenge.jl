@@ -1,6 +1,7 @@
 import Base: copy, show, convert
 
 using DataFrames
+using TimerOutputs
 
 type CountLog
     edges_inserted::Int64
@@ -83,8 +84,7 @@ end
 immutable PerformanceMetrics <: Metrics
     time::Float64
     bytes::Int64
-    gctime::Float64
-    memallocd::Int64
+    timer::TimerOutput
 end
 
 immutable BenchmarkMetrics <: Metrics
