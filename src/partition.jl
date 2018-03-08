@@ -1,3 +1,15 @@
+# Fall through
+function initial_setup(x)
+    nothing
+end
+
+function initialize_edge_counts(T, g, B, b, config, count_log)
+    initialize_edge_counts(T, g, B, b, count_log)
+end
+function zeros_interblock_edge_matrix(M, size, config::Void)
+    zeros_interblock_edge_matrix(M, size)
+end
+
 function carry_out_best_merges(
     delta_entropy_for_each_block::Vector{Float64},
     best_merge_for_each_block::Vector{Int64},
@@ -25,7 +37,7 @@ function carry_out_best_merges(
 end
 
 function agglomerative_updates{T}(
-    p::Partition{T}, num_blocks_to_merge::Int64, count_log::CountLog;
+    p::Partition{T}, num_blocks_to_merge::Int64, config, count_log::CountLog;
     num_agg_proposals_per_block::Int64 = 10,
     num_block_reduction_rate::Float64 = 0.5
     )
@@ -54,7 +66,7 @@ function agglomerative_updates{T}(
         num_blocks, num_blocks_to_merge
     )
 
-    Partition(T, p.g, b, num_blocks - num_blocks_to_merge, count_log = count_log)
+    Partition(T, p.g, b, num_blocks - num_blocks_to_merge, config, count_log = count_log)
 end
 
 function prepare_for_partition_on_next_num_blocks{T}(
@@ -225,8 +237,8 @@ function evaluate_nodal_proposal{T}(
 end
 
 function update_partition{T}(
-    p::Partition{T}, current_node::Int64, r::Int64, s::Int64, M_r_col::Vector{Int64},
-    M_s_col::Vector{Int64}, M_r_row::Vector{Int64}, M_s_row::Vector{Int64}, count_log
+    p::Partition{T}, current_node::Int64, r::Int64, s::Int64, M_r_col,
+    M_s_col, M_r_row, M_s_row, count_log
     )
     p.M = update_partition(p.M, r, s, M_r_col, M_s_col, M_r_row, M_s_row, count_log)
     p.b[current_node] = s
@@ -253,20 +265,20 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     num_blocks = nv(g)
     b = collect(1:num_blocks)
 
-    vertex_in_neighbors = in_neighbors(g)
+    vertex_in_neighbors = inneighbors(g)
 
     β = 3
-    num_agg_proposals_per_block = 10 # number of proposals per block
+    num_agg_proposals_per_block = 100 # number of proposals per block
     num_block_reduction_rate = 0.5 # fraction of blocks to reduce until the golden ratio bracket is established
 
     # nodal partition updates parameters
     # maximum number of iterations
-    max_num_nodal_itr = 100
+    max_num_nodal_itr = 1000
     # stop iterating when the change in entropy falls below this fraction of the overall entropy
     # lowering this threshold results in more nodal update iterations and likely better performance, but longer runtime
-    delta_entropy_threshold1 = 5e-4
+    delta_entropy_threshold1 = 5e-8
     # threshold after the golden ratio bracket is established (typically lower to fine-tune to partition)
-    delta_entropy_threshold2 = 1e-7
+    delta_entropy_threshold2 = 1e-10
     # width of the moving average window for the delta entropy convergence criterion
     delta_entropy_moving_avg_window = 3
 
@@ -275,10 +287,12 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
 
     count_log = CountLog()
 
+    config = initial_setup(T)
+
     for i=1:3
         #Create dummy partitions
         best_partitions[i] = Partition(
-            zeros_interblock_edge_matrix(T, nv(g)),
+            zeros_interblock_edge_matrix(T, nv(g), config),
             g,
             Inf,
             zeros(Int64, 0),
@@ -290,7 +304,8 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
         )
     end
 
-    current_partition = Partition(T, g, b, length(b))
+
+    current_partition = Partition(T, g, b, length(b), config)
 
     optimal_num_blocks_found = false
     num_blocks_to_merge = ceil(Int64, num_blocks * num_block_reduction_rate)
@@ -298,7 +313,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
     while optimal_num_blocks_found == false
         println("Merging down from $(current_partition.B) to $(current_partition.B - num_blocks_to_merge)")
         current_partition = agglomerative_updates(
-            current_partition, num_blocks_to_merge, count_log;
+            current_partition, num_blocks_to_merge, config, count_log;
             num_agg_proposals_per_block = num_agg_proposals_per_block
         )
 
@@ -310,7 +325,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
 
             for current_node::Int64 in vertices(g)
                 current_block = current_partition.b[current_node]
-                out_n = out_neighbors(g, current_node)
+                out_n = outneighbors(g, current_node)
                 in_n = vertex_in_neighbors[current_node]
                 out_wts = [
                     floor(Int64, get_weight(g, current_node, n)) for n in out_n

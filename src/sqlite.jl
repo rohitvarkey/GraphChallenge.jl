@@ -1,16 +1,14 @@
-using NamedTuples, DataStreams, LibPQ, Missings
+using SQLite
 
-export InterblockEdgeCountPostgres
+export InterblockEdgeCountSQLite
 
-const EDGELIST_TUPLE = @NT(block_num::Array{Int32}, src_block::Array{Int32}, dst_block::Array{Int32}, edgecount::Array{Int32})
-
-immutable InterblockEdgeCountPostgres
-    conn::LibPQ.Connection
+immutable InterblockEdgeCountSQLite
+    db::SQLite.DB
 end
 
-function initial_setup(T::Type{InterblockEdgeCountPostgres})
-    dbname = "rohitvarkey"
-    conn = LibPQ.Connection("dbname=$dbname")
+function initial_setup(T::Type{InterblockEdgeCountSQLite})
+    #in memory DB
+    db = SQLite.DB()
     edgelist_create_stmt = """CREATE TABLE edgelist (
         block_num   integer NOT NULL,
         src_block   integer NOT NULL,
@@ -25,27 +23,18 @@ function initial_setup(T::Type{InterblockEdgeCountPostgres})
     );
     """
 
-    src_block_index_stmt = """CREATE INDEX src_block_index on edgelist(src_block);"""
-    dst_block_index_stmt = """CREATE INDEX dst_block_index on edgelist(dst_block);"""
-    block_num_index_stmt = """CREATE INDEX block_num_index on edgelist(block_num);"""
-    result = execute(conn, "DROP TABLE IF EXISTS edgelist, blockmap;")
-    clear!(result)
-    result = execute(conn, "DROP INDEX IF EXISTS src_block_index, dst_block_index, block_num_index;")
-    clear!(result)
+    # Create table
+    SQLite.execute!(db, edgelist_create_stmt)
+    # Create indices.
+    SQLite.createindex!(db, "edgelist", "src_block_index", "src_block", unique=false)
+    SQLite.createindex!(db, "edgelist", "dst_block_index", "dst_block", unique=false)
+    SQLite.createindex!(db, "edgelist", "block_num_index", "block_num", unique=false)
 
-    for stmt in [
-        edgelist_create_stmt, src_block_index_stmt, dst_block_index_stmt,
-        block_num_index_stmt
-    ]
-        result = execute(conn, stmt)
-        clear!(result)
-    end
-
-    return conn
+    return db
 end
 
 function initialize_edge_counts!(
-    M::InterblockEdgeCountPostgres, g::SimpleWeightedDiGraph, B::Int64,
+    M::InterblockEdgeCountSQLite, g::SimpleWeightedDiGraph, B::Int64,
     b::Vector{Int64}, count_log::CountLog
     )
 
@@ -62,17 +51,17 @@ function initialize_edge_counts!(
             block_edge_counts[s][d] = get(block_edge_counts[s], d, 0) + weight(edge)
 
         else
-            block_edge_counts[s] = Dict(d=>get_weight(g, s, d))
+            block_edge_counts[s] = Dict(d => weight(edge))
             total_block_edges += 1
         end
     end
 
     count_log.edges_inserted += total_block_edges
 
-    block_num = fill(Int32(B), total_block_edges)
-    src_block = ones(Int32, total_block_edges)
-    dst_block = ones(Int32, total_block_edges)
-    edgecounts = ones(Int32, total_block_edges)
+    block_num = fill(Int64(B), total_block_edges)
+    src_block = ones(Int64, total_block_edges)
+    dst_block = ones(Int64, total_block_edges)
+    edgecounts = ones(Int64, total_block_edges)
     counter = 0
     # Create NamedTuple with the above data.
     for (src, edges) in block_edge_counts
@@ -84,42 +73,50 @@ function initialize_edge_counts!(
         end
     end
 
-    data = EDGELIST_TUPLE(block_num, src_block, dst_block, edgecounts)
-
-    stmt = Data.stream!(
-        data,
-        LibPQ.Statement,
-        M.conn,
-        "INSERT INTO edgelist VALUES (\$1, \$2, \$3, \$4);",
+    d = DataFrame(
+        block_num = block_num,
+        src_block = src_block,
+        dst_block = dst_block,
+        edgecounts = edgecounts
     )
+    sink = SQLite.Sink(M.db, "edgelist", Data.schema(d), append=true)
+    SQLite.load(sink, d, append = true)
 end
 
 function initialize_edge_counts(
-    _::Type{InterblockEdgeCountPostgres}, g::SimpleWeightedDiGraph, B::Int64,
-    b::Vector{Int64}, conn::LibPQ.Connection, count_log::CountLog
+    _::Type{InterblockEdgeCountSQLite}, g::SimpleWeightedDiGraph, B::Int64,
+    b::Vector{Int64}, db::SQLite.DB, count_log::CountLog
     )
-    M = InterblockEdgeCountPostgres(conn)
+    M = InterblockEdgeCountSQLite(db)
     initialize_edge_counts!(M, g, B, b, count_log)
     M
 end
 
 function compute_block_neighbors_and_degrees(
-    p::Partition{InterblockEdgeCountPostgres}, block::Int64, count_log::CountLog
+    p::Partition{InterblockEdgeCountSQLite}, block::Int64, count_log::CountLog
     )
-    out_neighbors = fetch!(
-        NamedTuple,
-        execute(p.M.conn, "SELECT dst_block, edgecount FROM edgelist WHERE src_block = $block and block_num=$(p.B);")
+    out_neighbors = SQLite.query(
+        p.M.db,
+        "SELECT dst_block, edgecount FROM edgelist WHERE src_block = $block and block_num=$(p.B);"
     )
-    in_neighbors = fetch!(
-        NamedTuple,
-        execute(p.M.conn, "SELECT src_block, edgecount FROM edgelist WHERE dst_block = $block and block_num=$(p.B);")
+    in_neighbors = SQLite.query(
+        p.M.db,
+        "SELECT src_block, edgecount FROM edgelist WHERE dst_block = $block and block_num=$(p.B);"
     )
     neighbors = collect(Int64,
         Set(skipmissing(out_neighbors[:dst_block])) ∪
         Set(skipmissing(in_neighbors[:src_block]))
     )
-    k_out = sum(out_neighbors[:edgecount])
-    k_in = sum(in_neighbors[:edgecount])
+    if nrow(out_neighbors) != 0
+        k_out = sum(out_neighbors[:edgecount])
+    else
+        k_out = 0
+    end
+    if nrow(in_neighbors) != 0
+        k_in =  sum(in_neighbors[:edgecount])
+    else
+        k_in = 0
+    end
     k = k_out + k_in
 
     count_log.edges_read += length(out_neighbors[:dst_block]) + length(in_neighbors[:src_block])
@@ -128,26 +125,26 @@ function compute_block_neighbors_and_degrees(
     neighbors, k_out, k_in, k
 end
 
-function compute_block_degrees(M::InterblockEdgeCountPostgres, B::Int64, count_log::CountLog)
+function compute_block_degrees(M::InterblockEdgeCountSQLite, B::Int64, count_log::CountLog)
 
-    d_out_query = fetch!(
-        NamedTuple,
-        execute(M.conn, "SELECT src_block, SUM(edgecount) FROM edgelist WHERE block_num=$B GROUP BY src_block;")
+    d_out_query = SQLite.query(
+        M.db,
+        "SELECT src_block, SUM(edgecount) as sum FROM edgelist WHERE block_num=$B GROUP BY src_block;"
     )
-    d_in_query = fetch!(
-        NamedTuple,
-        execute(M.conn, "SELECT dst_block, SUM(edgecount) FROM edgelist WHERE block_num=$B GROUP BY dst_block;")
+    d_in_query = SQLite.query(
+        M.db,
+        "SELECT dst_block, SUM(edgecount) as sum FROM edgelist WHERE block_num=$B GROUP BY dst_block;"
     )
 
     d_out = zeros(Int64, B)
     d_in = zeros(Int64, B)
 
-    for (src_block, degree) in zip(d_out_query[:src_block], d_out_query[:sum])
-        d_out[src_block] = degree
+    for row in eachrow(d_out_query)
+        d_out[row[:src_block]] = row[:sum]
     end
 
-    for (dst_block, degree) in zip(d_in_query[:dst_block], d_in_query[:sum])
-        d_in[dst_block] = degree
+    for row in eachrow(d_in_query)
+        d_in[row[:dst_block]] = row[:sum]
     end
 
     d = d_out .+ d_in
@@ -156,7 +153,7 @@ function compute_block_degrees(M::InterblockEdgeCountPostgres, B::Int64, count_l
 end
 
 function compute_new_matrix(
-    p::Partition{InterblockEdgeCountPostgres}, r::Int64, s::Int64,
+    p::Partition{InterblockEdgeCountSQLite}, r::Int64, s::Int64,
     out_block_count_map, in_block_count_map, self_edge_weight::Int64,
     count_log::CountLog
     )
@@ -175,19 +172,19 @@ function compute_new_matrix(
             col = M_s_col
             row = M_s_row
         end
-        out_neighbors = fetch!(
-            NamedTuple,
-            execute(p.M.conn, "SELECT dst_block, edgecount FROM edgelist WHERE src_block = $block and block_num=$(p.B);")
+        out_neighbors = SQLite.query(
+            p.M.db,
+            "SELECT dst_block, edgecount FROM edgelist WHERE src_block = $block and block_num=$(p.B);"
         )
-        in_neighbors = fetch!(
-            NamedTuple,
-            execute(p.M.conn, "SELECT src_block, edgecount FROM edgelist WHERE dst_block = $block and block_num=$(p.B);")
+        in_neighbors = SQLite.query(
+            p.M.db,
+            "SELECT src_block, edgecount FROM edgelist WHERE dst_block = $block and block_num=$(p.B);"
         )
-        for (dst_block, edgecount) in zip(out_neighbors[:dst_block], out_neighbors[:edgecount])
-            col[dst_block] = edgecount
+        for dfrow in eachrow(out_neighbors)
+            col[dfrow[:dst_block]] = dfrow[:edgecount]
         end
-        for (src_block, edgecount) in zip(in_neighbors[:src_block], in_neighbors[:edgecount])
-            row[src_block] = edgecount
+        for dfrow in eachrow(in_neighbors)
+            row[dfrow[:src_block]] = dfrow[:edgecount]
         end
 
         count_log.edges_read += length(out_neighbors[:dst_block]) + length(in_neighbors[:src_block])
@@ -228,7 +225,7 @@ end
 """Computes the new rows and cols in `M`, when all nodes from `r` are shifted to
 block `s`."""
 function compute_new_matrix_agglomerative(
-    p::Partition{InterblockEdgeCountPostgres}, r::Int64, s::Int64, count_log::CountLog
+    p::Partition{InterblockEdgeCountSQLite}, r::Int64, s::Int64, count_log::CountLog
     )
 
     M_r_row = zeros(Int64, p.B)
@@ -239,15 +236,17 @@ function compute_new_matrix_agglomerative(
 
     # Setup with initial counts
     for block in (r, s)
-        out_neighbors = fetch!(
-            NamedTuple,
-            execute(p.M.conn, "SELECT dst_block, edgecount FROM edgelist WHERE src_block = $block and block_num=$(p.B);")
+        out_neighbors = SQLite.query(
+            p.M.db,
+            "SELECT dst_block, edgecount FROM edgelist WHERE src_block = $block and block_num=$(p.B);"
         )
-        in_neighbors = fetch!(
-            NamedTuple,
-            execute(p.M.conn, "SELECT src_block, edgecount FROM edgelist WHERE dst_block = $block and block_num=$(p.B);")
+        in_neighbors = SQLite.query(
+            p.M.db,
+            "SELECT src_block, edgecount FROM edgelist WHERE dst_block = $block and block_num=$(p.B);"
         )
-        for (dst_block, edgecount) in zip(out_neighbors[:dst_block], out_neighbors[:edgecount])
+        for row in eachrow(out_neighbors)
+            dst_block = row[:dst_block]
+            edgecount = row[:edgecount]
             M_s_col[dst_block] += edgecount
             # s->r , r->r
             if dst_block == r && block == r
@@ -259,9 +258,9 @@ function compute_new_matrix_agglomerative(
                 M_s_row[s] += edgecount
             end
         end
-        for (src_block, edgecount) in zip(in_neighbors[:src_block], in_neighbors[:edgecount])
+        for row in eachrow(in_neighbors)
             # r->s , r->r
-            M_s_row[src_block] += edgecount
+            M_s_row[row[:src_block]] += row[:edgecount]
         end
         count_log.edges_read += length(out_neighbors[:dst_block]) + length(in_neighbors[:src_block])
     end
@@ -273,28 +272,26 @@ function compute_new_matrix_agglomerative(
 end
 
 function compute_multinomial_probs(
-    p::Partition{InterblockEdgeCountPostgres}, vertex::Int64, count_log::CountLog
+    p::Partition{InterblockEdgeCountSQLite}, vertex::Int64, count_log::CountLog
     )
-    out_counts = fetch!(
-        NamedTuple,
-        execute(p.M.conn, """
+    out_counts = SQLite.query(
+        p.M.db,
+        """
         SELECT dst_block as neighbor, edgecount FROM edgelist WHERE
         src_block=$vertex and block_num=$(p.B);
         """
-        )
     )
-    in_counts = fetch!(
-        NamedTuple,
-        execute(p.M.conn, """
+    in_counts = SQLite.query(
+        p.M.db,
+        """
         SELECT src_block as neighbor, edgecount FROM edgelist WHERE
         dst_block=$vertex and block_num=$(p.B);
         """
-        )
     )
     probs = zeros(Int64, p.B)
     for counts in (out_counts, in_counts)
-        for (neighbor, edgecount) in zip(counts[:neighbor], counts[:edgecount])
-            probs[neighbor] += edgecount
+        for row in eachrow(counts)
+            probs[row[:neighbor]] += row[:edgecount]
         end
         count_log.edges_read += length(counts[:neighbor])
     end
@@ -302,7 +299,7 @@ function compute_multinomial_probs(
 end
 
 function compute_delta_entropy(
-    p::Partition{InterblockEdgeCountPostgres}, r::Int64, s::Int64,
+    p::Partition{InterblockEdgeCountSQLite}, r::Int64, s::Int64,
     M_r_col::Array{Int64, 1}, M_s_col::Array{Int64, 1},
     M_r_row::Array{Int64, 1}, M_s_row::Array{Int64, 1},
     d_out_new::Vector{Int64}, d_in_new::Vector{Int64}, count_log::CountLog
@@ -336,45 +333,37 @@ function compute_delta_entropy(
     end
 
     # Sum over edges in old M
-    edges_query = fetch!(
-        NamedTuple,
-        execute(p.M.conn, """
+    edges_query = SQLite.query(
+        p.M.db,
+        """
         SELECT src_block, dst_block, edgecount FROM edgelist WHERE
         block_num=$(p.B) and (src_block IN ($r, $s) or dst_block IN ($r, $s));
         """
-        )
     )
     count_log.edges_read += length(edges_query[:src_block])
-    for (src_block, dst_block, edgecount) in zip(
-        edges_query[:src_block],
-        edges_query[:dst_block],
-        edges_query[:edgecount]
-    )
-        delta += edgecount * log(edgecount / p.d_in[dst_block] / p.d_out[src_block])
+    for row in eachrow(edges_query)
+        edgecount = row[:edgecount]
+        delta += edgecount * log(edgecount / p.d_in[row[:dst_block]] / p.d_out[row[:src_block]])
     end
     delta
 end
 
 function compute_overall_entropy(
-        M::InterblockEdgeCountPostgres, d_out::Vector{Int64}, d_in::Vector{Int64},
+        M::InterblockEdgeCountSQLite, d_out::Vector{Int64}, d_in::Vector{Int64},
         B::Int64, N::Int64, E::Int64, count_log::CountLog
     )
     summation_term = 0.0
-    edges_query =  fetch!(
-        NamedTuple,
-        execute(M.conn, """
+    edges_query =  SQLite.query(
+        M.db,
+        """
         SELECT src_block, dst_block, edgecount FROM edgelist WHERE
         block_num=$B;
         """
-        )
     )
     count_log.edges_read += length(edges_query[:src_block])
-    for (src_block, dst_block, edgecount) in zip(
-        edges_query[:src_block],
-        edges_query[:dst_block],
-        edges_query[:edgecount]
-    )
-        summation_term -= edgecount * log(edgecount/ d_in[dst_block] / d_out[src_block])
+    for row in eachrow(edges_query)
+        edgecount = row[:edgecount]
+        summation_term -= edgecount * log(edgecount/ d_in[row[:dst_block]] / d_out[row[:src_block]])
     end
 
     model_S_term = B^2 / E
@@ -384,7 +373,7 @@ function compute_overall_entropy(
 end
 
 function compute_hastings_correction(
-        s::Int64, p::Partition{InterblockEdgeCountPostgres}, M_r_row::Vector{Int64},
+        s::Int64, p::Partition{InterblockEdgeCountSQLite}, M_r_row::Vector{Int64},
         M_r_col::Vector{Int64}, d_new::Vector{Int64},
         blocks_out_count_map, blocks_in_count_map, count_log::CountLog
     )
@@ -392,30 +381,28 @@ function compute_hastings_correction(
     blocks_in = collect(keys(blocks_in_count_map))
     blocks = Set(blocks_out) ∪ Set(blocks_in)
 
-    out_counts_query = fetch!(
-        NamedTuple,
-        execute(p.M.conn, """
+    out_counts_query = SQLite.query(
+        p.M.db,
+        """
         SELECT src_block as neighbor, edgecount FROM edgelist WHERE
         src_block in ($(join(blocks_in, ','))) and block_num=$(p.B) and dst_block=$s;
         """
-        )
     )
-    in_counts_query = fetch!(
-        NamedTuple,
-        execute(p.M.conn, """
+    in_counts_query = SQLite.query(
+        p.M.db,
+        """
         SELECT dst_block as neighbor, edgecount FROM edgelist WHERE
         dst_block in ($(join(blocks_out, ','))) and block_num=$(p.B) and src_block=$s;
         """
-        )
     )
     out_counts = Dict{Int64, Int64}()
     in_counts = Dict{Int64, Int64}()
 
-    for (neighbor, edgecount) in zip(out_counts_query[:neighbor], out_counts_query[:edgecount])
-        out_counts[neighbor] = edgecount
+    for row in eachrow(out_counts_query)
+        out_counts[row[:neighbor]] = row[:edgecount]
     end
-    for (neighbor, edgecount) in zip(in_counts_query[:neighbor], in_counts_query[:edgecount])
-        in_counts[neighbor] = edgecount
+    for row in eachrow(in_counts_query)
+        in_counts[row[:neighbor]] = row[:edgecount]
     end
 
     count_log.edges_read += length(out_counts_query[:neighbor]) + length(in_counts_query[:neighbor])
@@ -433,22 +420,21 @@ function compute_hastings_correction(
 end
 
 function update_partition(
-    M::InterblockEdgeCountPostgres, r::Int64, s::Int64,
+    M::InterblockEdgeCountSQLite, r::Int64, s::Int64,
     M_r_col::Vector{Int64}, M_s_col::Vector{Int64},
     M_r_row::Vector{Int64}, M_s_row::Vector{Int64},
     count_log::CountLog
     )
     B = length(M_r_col)
-    res = execute(
-        M.conn,
+    res = SQLite.execute!(
+        M.db,
         """
         DELETE FROM edgelist WHERE (src_block in ($r, $s) or dst_block in ($r, $s)) and block_num=$B;
         """
     )
 
-    count_log.edges_deleted += num_affected_rows(res)
-
-    clear!(res)
+    #TODO: Find a way to count this
+    #count_log.edges_deleted += num_affected_rows(res)
 
     edges_to_insert = Set{NTuple{4,Int32}}()
     for dst_block in findn(M_r_col)
@@ -471,22 +457,23 @@ function update_partition(
     src_blocks = [edge[2] for edge in edges]
     dst_blocks = [edge[3] for edge in edges]
     edgecounts = [edge[4] for edge in edges]
-    data = EDGELIST_TUPLE(block_nums, src_blocks, dst_blocks, edgecounts)
+    d = DataFrame(
+        block_num = block_nums,
+        src_block = src_blocks,
+        dst_block = dst_blocks,
+        edgecounts = edgecounts
+    )
     #info("Updated partition")
 
-    stmt = Data.stream!(
-        data,
-        LibPQ.Statement,
-        M.conn,
-        "INSERT INTO edgelist VALUES (\$1, \$2, \$3, \$4);",
-    )
+    sink = SQLite.Sink(M.db, "edgelist", Data.schema(d), append=true)
+    SQLite.load(sink, d, append = true)
 
     count_log.edges_inserted += length(edges)
 
     M
 end
 
-function zeros_interblock_edge_matrix(::Type{InterblockEdgeCountPostgres},
-    size::Int64, conn)
-    return InterblockEdgeCountPostgres(conn)
+function zeros_interblock_edge_matrix(::Type{InterblockEdgeCountSQLite},
+    size::Int64, db)
+    return InterblockEdgeCountSQLite(db)
 end

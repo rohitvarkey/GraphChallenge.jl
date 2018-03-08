@@ -20,17 +20,25 @@ function test_compute_block_degrees(M, g::SimpleWeightedDiGraph, num_nodes::Int6
     end
 end
 
+function test_partition(T)
+    A = [8 3 5; 2 9 6; 4 12 10]
+    g = SimpleWeightedDiGraph(A')
+    config = GraphChallenge.initial_setup(T)
+    b = collect(1:3)
+    Partition(T, g, b, length(b), config)
+end
 
 @testset "Initialization" begin
     for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
-        #Array{Int64, 2}, InterblockEdgeCountDictDict,
-        #InterblockEdgeCountVectorDict,
+        Array{Int64, 2}, InterblockEdgeCountDictDict,
+        InterblockEdgeCountVectorDict, InterblockEdgeCountSQLite
         )
         println("Testing for: $T")
         num_nodes = 50
         g = load_graph(50)
+        c = GraphChallenge.initial_setup(T)
         M = initialize_edge_counts(
-            T, g, num_nodes, collect(1:num_nodes), CountLog()
+            T, g, num_nodes, collect(1:num_nodes), c, CountLog()
         )
 
         test_initialize_counts(M, g)
@@ -67,17 +75,18 @@ function test_carry_out_best_merges()
 end
 
 @testset "Agglomerative step" begin
-    for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres
-        #Array{Int64, 2}, InterblockEdgeCountDictDict,
-        #InterblockEdgeCountVectorDict, InterblockEdgeCountStinger
+    for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
+        Array{Int64, 2}, InterblockEdgeCountDictDict,
+        InterblockEdgeCountVectorDict, InterblockEdgeCountSQLite
         )
         println("Testing for: $T")
         test_compute_new_matrix_agglomerative(T)
         num_nodes = 50
         g = load_graph(50)
+        c = GraphChallenge.initial_setup(T)
         block_partition = collect(1:num_nodes)
         M = initialize_edge_counts(
-            T, g, num_nodes, block_partition, CountLog()
+            T, g, num_nodes, block_partition, c, CountLog()
         )
         d_out, d_in, d = compute_block_degrees(M, num_nodes, CountLog())
         current_block = 1
@@ -134,8 +143,9 @@ end
 
 @testset "Nodal step" begin
     for T in (InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
-    #Array{Int64, 2}, InterblockEdgeCountDictDict,
-    #InterblockEdgeCountVectorDict, InterblockEdgeCountStinger
+    Array{Int64, 2}, InterblockEdgeCountDictDict,
+    InterblockEdgeCountVectorDict, InterblockEdgeCountStinger,
+    InterblockEdgeCountSQLite
     )
         println("Testing for: $T")
         test_compute_new_matrix(T)
