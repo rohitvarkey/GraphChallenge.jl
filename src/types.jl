@@ -51,6 +51,16 @@ function Partition(
     Partition(M, g, overall_entropy, b, d, d_out, d_in, num_blocks, count_log)
 end
 
+function compute_block_degrees(p::Partition, count_log::CountLog)
+    p.d_out, p.d_in, p.d = compute_block_degrees(p.M, p.B, count_log)
+end
+
+function compute_overall_entropy(p::Partition, count_log::CountLog)
+    p.S = compute_overall_entropy(
+        p.M, p.d_out, p.d_in, p.B, nv(p.g), ne(p.g), count_log
+    )
+end
+
 function copy(p::Partition)
     Partition(
         copy(p.M), p.g, p.S, copy(p.b), copy(p.d), copy(p.d_out), copy(p.d_in),
@@ -58,7 +68,7 @@ function copy(p::Partition)
     )
 end
 
-show(io::IO, p::Partition) = print(io, "Partition(", p.S, "," , p.B, ",", sort(unique(p.b)),")")
+show(io::IO, p::Partition) = print(io, "Partition(", p.S, "," , p.B, ",", p.b,")")
 
 abstract type Metrics end
 
