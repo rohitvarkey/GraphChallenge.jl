@@ -1,8 +1,6 @@
 using Base.Threads
 using TimerOutputs
 
-const to = TimerOutput()
-
 # Fall through
 function initial_setup(x)
     nothing
