@@ -1,3 +1,6 @@
+using Base.Threads
+using TimerOutputs
+
 # Fall through
 function initial_setup(x)
     nothing
@@ -36,6 +39,29 @@ function carry_out_best_merges(
     return b
 end
 
+function agglomerative_updates_kernel{T}(
+    p::Partition{T},
+    current_block::Int64,
+    best_merge_for_each_block::Vector{Int64},
+    delta_entropy_for_each_block::Vector{Float64},
+    num_agg_proposals_per_block::Int64,
+    count_log::CountLog
+    )
+    neighbors, k_out, k_in, k = compute_block_neighbors_and_degrees(
+        p, current_block, count_log
+    )
+    for proposal_idx = 1:num_agg_proposals_per_block
+        proposal = propose_new_partition_agg(p, current_block, neighbors, count_log)
+        Δ = evaluate_proposal_agg(
+            p, current_block, proposal, k, k_in, k_out, count_log
+        )
+        if Δ < delta_entropy_for_each_block[current_block]
+            best_merge_for_each_block[current_block] = proposal
+            delta_entropy_for_each_block[current_block] = Δ
+        end
+    end
+end
+
 function agglomerative_updates{T}(
     p::Partition{T}, num_blocks_to_merge::Int64, config, count_log::CountLog;
     num_agg_proposals_per_block::Int64 = 10,
@@ -44,20 +70,12 @@ function agglomerative_updates{T}(
     num_blocks = p.B
     best_merge_for_each_block = fill(-1, num_blocks)
     delta_entropy_for_each_block = fill(Inf, num_blocks)
-    for current_block = 1:num_blocks
-        neighbors, k_out, k_in, k = compute_block_neighbors_and_degrees(
-            p, current_block, count_log
+    @threads for current_block = 1:num_blocks
+        agglomerative_updates_kernel(
+            p, current_block, best_merge_for_each_block,
+            delta_entropy_for_each_block, num_agg_proposals_per_block,
+            count_log
         )
-        for proposal_idx = 1:num_agg_proposals_per_block
-            proposal = propose_new_partition_agg(p, current_block, neighbors, count_log)
-            Δ = evaluate_proposal_agg(
-                p, current_block, proposal, k, k_in, k_out, count_log
-            )
-            if Δ < delta_entropy_for_each_block[current_block]
-                best_merge_for_each_block[current_block] = proposal
-                delta_entropy_for_each_block[current_block] = Δ
-            end
-        end
     end
     # Get the new block assignments
     new_num_blocks = num_blocks - num_blocks_to_merge
@@ -261,6 +279,12 @@ function partition(T::Type, sampling_type::String, num_nodes::Int64)
 end
 
 function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
+    timer = TimerOutput()
+    @timeit timer "$T $num_nodes" p = partition(T, g, num_nodes, timer)
+    p, timer
+end
+
+function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::TimerOutput)
 
     num_blocks = nv(g)
     b = collect(1:num_blocks)
@@ -312,18 +336,19 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
 
     while optimal_num_blocks_found == false
         println("Merging down from $(current_partition.B) to $(current_partition.B - num_blocks_to_merge)")
-        current_partition = agglomerative_updates(
+        @timeit timer "agglomerative_updates" current_partition = agglomerative_updates(
             current_partition, num_blocks_to_merge, config, count_log;
             num_agg_proposals_per_block = num_agg_proposals_per_block
         )
 
         total_num_nodal_moves = 0
         nodal_itr_delta_entropy = zeros(max_num_nodal_itr)
-        for nodal_itr in 1:max_num_nodal_itr
+        @timeit timer "nodal_updates" for nodal_itr in 1:max_num_nodal_itr
             num_nodal_moves = 0
             nodal_itr_delta_entropy[nodal_itr] = 0
+            b_new = copy(current_partition.b)
 
-            for current_node::Int64 in vertices(g)
+            @threads for current_node::Int64 in vertices(g)
                 current_block = current_partition.b[current_node]
                 out_n = outneighbors(g, current_node)
                 in_n = vertex_in_neighbors[current_node]
@@ -366,16 +391,51 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64)
                         total_num_nodal_moves += 1
                         num_nodal_moves += 1
                         nodal_itr_delta_entropy[nodal_itr] += Δ
-                        current_partition = update_partition(
-                            current_partition, current_node, current_block, proposal,
-                            M_r_col, M_s_col, M_r_row, M_s_row, count_log
-                        )
-                        #d_out, d_in, d = compute_block_degrees(M, num_blocks)
-                        #partition[current_node] = proposal
+                        #update proposal
+                        b_new[current_node] = proposal
                     end
                 end
-                #println("After nodal update")
             end
+            # Sequential Aggregation of updates
+            for (vertex, new_block) in enumerate(b_new)
+                current_block = current_partition.b[vertex]
+                if new_block != current_block
+                    # perform update
+                    # TODO: More efficient way of doing this?
+                    out_n = outneighbors(g, vertex)
+                    in_n = vertex_in_neighbors[vertex]
+                    out_wts = [
+                        floor(Int64, get_weight(g, vertex, n)) for n in out_n
+                    ]
+                    in_wts = [
+                        floor(Int64, get_weight(g, n, vertex)) for n in in_n
+                    ]
+                    blocks_out_count_map = countmap(
+                        current_partition.b[out_n], Distributions.weights(out_wts)
+                    )
+                    blocks_in_count_map = countmap(
+                        current_partition.b[in_n], Distributions.weights(in_wts)
+                    )
+                    self_edge_weight = floor(
+                        Int64, get_weight(g, vertex, vertex)
+                    )
+                    M_r_row, M_r_col, M_s_row, M_s_col = compute_new_matrix(
+                        current_partition, current_block, new_block,
+                        blocks_out_count_map, blocks_in_count_map,
+                        self_edge_weight, count_log
+                    )
+                    current_partition.M = update_partition(
+                        current_partition.M, current_block, new_block,
+                        M_r_col, M_s_col, M_r_row, M_s_row, count_log
+                    )
+                    current_partition.b[vertex] = new_block
+                    #println("Updated $vertex from $(current_block) to $(new_block)")
+                    #println("Partition is $(current_partition)")
+                end
+            end
+            compute_block_degrees(current_partition, count_log)
+            compute_overall_entropy(current_partition, count_log)
+            #println("Partition after recomputations is $(current_partition)")
             # exit MCMC if the recent change in entropy falls below a small fraction of the overall entropy
             println("Itr: $nodal_itr, nodal moves: $(num_nodal_moves), Δ: $(nodal_itr_delta_entropy[nodal_itr]), fraction: $(-nodal_itr_delta_entropy[nodal_itr]/current_partition.S)")
             if (nodal_itr >= delta_entropy_moving_avg_window)
