@@ -329,7 +329,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
     end
 
 
-    current_partition = Partition(T, g, b, length(b), config)
+    current_partition::Partition{T} = Partition(T, g, b, length(b), config)
 
     optimal_num_blocks_found = false
     num_blocks_to_merge = ceil(Int64, num_blocks * num_block_reduction_rate)
@@ -341,12 +341,12 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
             num_agg_proposals_per_block = num_agg_proposals_per_block
         )
 
-        total_num_nodal_moves = 0
+        total_num_nodal_moves::Int = 0
         nodal_itr_delta_entropy = zeros(max_num_nodal_itr)
         @timeit timer "nodal_updates" for nodal_itr in 1:max_num_nodal_itr
             num_nodal_moves = 0
             nodal_itr_delta_entropy[nodal_itr] = 0
-            b_new = copy(current_partition.b)
+            b_new::Vector{Int64} = copy(current_partition.b)
 
             @threads for current_node::Int64 in vertices(g)
                 current_block = current_partition.b[current_node]
@@ -397,18 +397,18 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
                 end
             end
             # Sequential Aggregation of updates
-            for (vertex, new_block) in enumerate(b_new)
+            for (vertex::Int64, new_block::Int64) in enumerate(b_new)
                 current_block = current_partition.b[vertex]
                 if new_block != current_block
                     # perform update
                     # TODO: More efficient way of doing this?
-                    out_n = outneighbors(g, vertex)
-                    in_n = vertex_in_neighbors[vertex]
+                    out_n::Vector{Int64} = outneighbors(g, vertex)
+                    in_n::Vector{Int64} = vertex_in_neighbors[vertex]
                     out_wts = [
-                        floor(Int64, get_weight(g, vertex, n)) for n in out_n
+                        floor(Int64, get_weight(g, vertex, n))::Int64 for n in out_n
                     ]
                     in_wts = [
-                        floor(Int64, get_weight(g, n, vertex)) for n in in_n
+                        floor(Int64, get_weight(g, n, vertex))::Int64 for n in in_n
                     ]
                     blocks_out_count_map = countmap(
                         current_partition.b[out_n], Distributions.weights(out_wts)
@@ -439,7 +439,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
             # exit MCMC if the recent change in entropy falls below a small fraction of the overall entropy
             println("Itr: $nodal_itr, nodal moves: $(num_nodal_moves), Δ: $(nodal_itr_delta_entropy[nodal_itr]), fraction: $(-nodal_itr_delta_entropy[nodal_itr]/current_partition.S)")
             if (nodal_itr >= delta_entropy_moving_avg_window)
-               window = (nodal_itr-delta_entropy_moving_avg_window+1):nodal_itr
+               window::UnitRange{Int64} = (nodal_itr-delta_entropy_moving_avg_window+1):nodal_itr
                println("$(-mean(nodal_itr_delta_entropy[window])), $(delta_entropy_threshold1 * current_partition.S), $(current_partition.S)")
                if all(isfinite.(old_overall_entropy)) == false # golden ratio bracket not yet established
                    if -mean(nodal_itr_delta_entropy[window]) <
@@ -472,4 +472,5 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
         end
         current_partition = new_partition
     end
+    current_partition, count_log
 end
