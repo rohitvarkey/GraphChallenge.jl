@@ -32,11 +32,10 @@ function carry_out_best_merges(
             blocks_merged += 1
         end
     end
-    remaining_blocks = sort(unique(b))
+    remaining_blocks::Vector{Int64} = sort(unique(b))
     mapping = -ones(Int64, num_blocks)
     mapping[remaining_blocks] = 1:length(remaining_blocks)
-    b = mapping[b]
-    return b
+    return mapping[b]
 end
 
 function agglomerative_updates_kernel{T}(
@@ -63,7 +62,7 @@ function agglomerative_updates_kernel{T}(
 end
 
 function agglomerative_updates{T}(
-    p::Partition{T}, num_blocks_to_merge::Int64, config, count_log::CountLog;
+    p::Partition{T}, num_blocks_to_merge::Int64, config, count_log::CountLog,
     num_agg_proposals_per_block::Int64 = 10,
     num_block_reduction_rate::Float64 = 0.5
     )
@@ -337,8 +336,8 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
     while optimal_num_blocks_found == false
         println("Merging down from $(current_partition.B) to $(current_partition.B - num_blocks_to_merge)")
         @timeit timer "agglomerative_updates" current_partition = agglomerative_updates(
-            current_partition, num_blocks_to_merge, config, count_log;
-            num_agg_proposals_per_block = num_agg_proposals_per_block
+            current_partition, num_blocks_to_merge, config, count_log,
+            num_agg_proposals_per_block, num_block_reduction_rate
         )
 
         total_num_nodal_moves::Int = 0
