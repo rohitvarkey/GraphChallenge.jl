@@ -400,7 +400,6 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
     optimal_num_blocks_found = false
     num_blocks_to_merge = ceil(Int64, num_blocks * num_block_reduction_rate)
 
-    total_num_nodal_moves::Int64 = 0
 
     # Thread local output storage
     new_d_out = [similar(current_partition.d_out) for i=1:Threads.nthreads()]
@@ -413,7 +412,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
             current_partition, num_blocks_to_merge, new_d_out, new_d_in,
             config, count_log, num_agg_proposals_per_block, num_block_reduction_rate
         )
-
+        total_num_nodal_moves::Int64 = 0
         nodal_itr_delta_entropy = zeros(max_num_nodal_itr)
         @timeit timer "nodal_updates" for nodal_itr in 1:max_num_nodal_itr
             num_nodal_moves = zeros(Int64, Threads.nthreads())
@@ -429,6 +428,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
                     new_d[Threads.threadid()], count_log
                 )
             end
+            total_num_nodal_moves += sum(num_nodal_moves)
             # Sequential Aggregation of updates
             for (vertex::Int64, new_block::Int64) in enumerate(b_new)
                 current_block = current_partition.b[vertex]

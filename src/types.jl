@@ -84,22 +84,27 @@ end
 immutable PerformanceMetrics <: Metrics
     time::Float64
     bytes::Int64
-    timer::TimerOutput
+    agg_time::Float64
+    agg_bytes::Int64
+    nodal_time::Float64
+    nodal_bytes::Int64
+    iters::Int64
 end
 
 immutable BenchmarkMetrics <: Metrics
-    T::DataType
+    backend_name::String
     nv::Int64
     ne::Int64
     nb::Int64
     performance::PerformanceMetrics
     correctness::CorrectnessMetrics
     count_log::CountLog
+    T::DataType
 end
 
 function convert(::Type{DataFrame}, results::Vector{BenchmarkMetrics})
     df = DataFrame(
-        Type = [result.T for result in results],
+        Name = [result.backend_name for result in results],
         num_nodes = [result.nv for result in results],
         num_edges = [result.ne for result in results],
         num_blocks = [result.nb for result in results]
