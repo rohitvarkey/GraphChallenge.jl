@@ -13,6 +13,17 @@ function zeros_interblock_edge_matrix(M, size, config::Void)
     zeros_interblock_edge_matrix(M, size)
 end
 
+function random_neighbor(r::Int64, num_blocks::Int64)
+    s = rand(1:num_blocks)
+    if s == r && r != 1
+        s = r - 1
+    end
+    if r == 1
+        s = 2
+    end
+    return s
+end
+
 function carry_out_best_merges(
     delta_entropy_for_each_block::Vector{Float64},
     best_merge_for_each_block::Vector{Int64},
@@ -138,26 +149,17 @@ function propose_new_partition_agg{T}(
     )
     # Pick a neighbor randomly
     if length(neighbors) == 0
-        candidates = Set(1:p.B)
-        # Force to be different than r.
-        pop!(candidates, r)
-        s = sample(collect(candidates))
-        return s
+        return random_neighbor(r, p.B)
     end
     rand_neighbor = sample(neighbors, Distributions.weights(p.d[neighbors]./sum(p.d)))
     u = p.b[rand_neighbor]
     if rand() < p.B / (p.d[u] + p.B)
-        candidates = Set(1:p.B)
-        pop!(candidates, r)
-        s = sample(collect(candidates))
+        return random_neighbor(r, p.B)
     else
         multinomial_prob = compute_multinomial_probs(p, u, count_log)
         multinomial_prob[r] = 0
         if sum(multinomial_prob) == 0
-            candidates = Set(1:p.B)
-            pop!(candidates, r)
-            s = sample(collect(candidates))
-            return s
+            return random_neighbor(r, p.B)
         else
             # Normalize back
             multinomial_prob /= sum(multinomial_prob)
@@ -174,24 +176,17 @@ function propose_new_partition_nodal{T}(
 
     # Pick a neighbor randomly
     if length(neighbors) == 0
-        candidates = Set(1:p.B)
-        s = sample(collect(candidates))
-        return s
+        return random_neighbor(r, p.B)
     end
     rand_neighbor = sample(neighbors, Distributions.weights(wts./sum(wts)))
     u = p.b[rand_neighbor]
     if rand() < p.B / (p.d[u] + p.B)
-        candidates = Set(1:p.B)
-        pop!(candidates, r)
-        s = sample(collect(candidates))
+        return random_neighbor(r, p.B)
     else
         multinomial_prob = compute_multinomial_probs(p, u, count_log)
         #multinomial_prob[r] = 0
         if sum(multinomial_prob) == 0
-            candidates = Set(1:B)
-            pop!(candidates, r)
-            s = sample(collect(candidates))
-            return s
+            return random_neighbor(r, p.B)
         else
             # Normalize back
             multinomial_prob /= sum(multinomial_prob)
