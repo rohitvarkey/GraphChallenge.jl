@@ -216,7 +216,8 @@ end
 function evaluate_nodal_proposal{T}(
     p::Partition{T}, r::Int64, s::Int64,β::Int64,
     k::Int64, k_in::Int64, k_out::Int64, self_edge_weight::Int64,
-    blocks_out_count_map, blocks_in_count_map, count_log
+    blocks_out_count_map, blocks_in_count_map, new_d_out::Vector{Int64},
+    new_d_in::Vector{Int64}, new_d::Vector{Int64}, count_log
     )
 
     M_r_row, M_r_col, M_s_row, M_s_col = compute_new_matrix(
@@ -224,21 +225,24 @@ function evaluate_nodal_proposal{T}(
         count_log
     )
 
-    new_degrees = [copy(degrees) for degrees in [p.d_out, p.d_in, p.d]]
-    for (new_d, degree) in zip(new_degrees, [k_out, k_in, k])
-        new_d[r] -= degree
-        new_d[s] += degree
+    copy!(new_d_out, p.d_out)
+    copy!(new_d_in, p.d_in)
+    copy!(new_d, p.d)
+
+    for (d_new, degree) in zip([new_d_out, new_d_in, new_d], [k_out, k_in, k])
+        d_new[r] -= degree
+        d_new[s] += degree
     end
 
     hastings_correction = compute_hastings_correction(
-        s, p, M_r_row, M_r_col, new_degrees[3],
+        s, p, M_r_row, M_r_col, new_d,
         blocks_out_count_map, blocks_in_count_map,
         count_log
     )
 
     Δ = compute_delta_entropy(
             p, r, s, M_r_col, M_s_col, M_r_row, M_s_row,
-            new_degrees[1], new_degrees[2], count_log
+            new_d_out, new_d_in, count_log
         )
 
     p_accept = min(exp(-β * Δ) * hastings_correction, 1)
@@ -259,6 +263,9 @@ function nodal_update_kernel{T}(
     num_nodal_moves::Vector{Int64},
     nodal_itr_delta_entropy::Vector{Float64},
     nodal_itr::Int64,
+    new_d_out::Vector{Int64},
+    new_d_in::Vector{Int64},
+    new_d::Vector{Int64},
     count_log::CountLog
     )
     current_block = current_partition.b[current_node]
@@ -294,7 +301,7 @@ function nodal_update_kernel{T}(
             current_partition, current_block, proposal, β,
             k_in + k_out, k_in, k_out, self_edge_weight,
             blocks_out_count_map, blocks_in_count_map,
-            count_log
+            new_d_out, new_d_in, new_d, count_log
         )
         random_value = rand(Uniform())
         if random_value <= p_accept
@@ -387,6 +394,12 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
     num_blocks_to_merge = ceil(Int64, num_blocks * num_block_reduction_rate)
 
     total_num_nodal_moves::Int64 = 0
+
+    # Thread local output storage
+    new_d_out = [similar(current_partition.d_out) for i=1:Threads.nthreads()]
+    new_d_in = [similar(current_partition.d_in) for i=1:Threads.nthreads()]
+    new_d = [similar(current_partition.d) for i=1:Threads.nthreads()]
+
     while optimal_num_blocks_found == false
         println("Merging down from $(current_partition.B) to $(current_partition.B - num_blocks_to_merge)")
         @timeit timer "agglomerative_updates" current_partition = agglomerative_updates(
@@ -400,11 +413,13 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
             nodal_itr_delta_entropy[nodal_itr] = 0
             b_new::Vector{Int64} = copy(current_partition.b)
 
-            @threads for current_node::Int64 in vertices(g)
+            for current_node::Int64 in vertices(g)
                 nodal_update_kernel(
                     current_node, current_partition, g, β, b_new,
                     outneighbors(g, current_node), vertex_in_neighbors[current_node],
-                    num_nodal_moves, nodal_itr_delta_entropy, nodal_itr, count_log
+                    num_nodal_moves, nodal_itr_delta_entropy, nodal_itr,
+                    new_d_out[Threads.threadid()], new_d_in[Threads.threadid()],
+                    new_d[Threads.threadid()], count_log
                 )
             end
             # Sequential Aggregation of updates
