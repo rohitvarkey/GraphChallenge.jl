@@ -55,6 +55,8 @@ function agglomerative_updates_kernel{T}(
     best_merge_for_each_block::Vector{Int64},
     delta_entropy_for_each_block::Vector{Float64},
     num_agg_proposals_per_block::Int64,
+    new_d_out::Vector{Int64},
+    new_d_in::Vector{Int64},
     count_log::CountLog
     )
     neighbors, k_out, k_in, k = compute_block_neighbors_and_degrees(
@@ -63,7 +65,7 @@ function agglomerative_updates_kernel{T}(
     for proposal_idx = 1:num_agg_proposals_per_block
         proposal = propose_new_partition_agg(p, current_block, neighbors, count_log)
         Δ = evaluate_proposal_agg(
-            p, current_block, proposal, k, k_in, k_out, count_log
+            p, current_block, proposal, k, k_in, k_out, new_d_out, new_d_in, count_log
         )
         if Δ < delta_entropy_for_each_block[current_block]
             best_merge_for_each_block[current_block] = proposal
@@ -73,17 +75,19 @@ function agglomerative_updates_kernel{T}(
 end
 
 function agglomerative_updates{T}(
-    p::Partition{T}, num_blocks_to_merge::Int64, config, count_log::CountLog,
+    p::Partition{T}, num_blocks_to_merge::Int64, new_d_out,
+    new_d_in, config, count_log::CountLog,
     num_agg_proposals_per_block::Int64 = 10,
     num_block_reduction_rate::Float64 = 0.5
     )
     num_blocks = p.B
     best_merge_for_each_block = fill(-1, num_blocks)
     delta_entropy_for_each_block = fill(Inf, num_blocks)
-    @threads for current_block = 1:num_blocks
+    for current_block = 1:num_blocks
         agglomerative_updates_kernel(
             p, current_block, best_merge_for_each_block,
             delta_entropy_for_each_block, num_agg_proposals_per_block,
+            new_d_out[Threads.threadid()], new_d_in[Threads.threadid()],
             count_log
         )
     end
@@ -198,17 +202,20 @@ end
 
 function evaluate_proposal_agg{T}(
     p::Partition{T}, r::Int64, s::Int64, k::Int64, k_in::Int64, k_out::Int64,
-    count_log::CountLog
+    new_d_out::Vector{Int64}, new_d_in::Vector{Int64}, count_log::CountLog
     )
     M_r_row, M_r_col, M_s_row, M_s_col =
         compute_new_matrix_agglomerative(p, r, s, count_log)
-    new_degrees = [copy(degrees) for degrees in [p.d_out, p.d_in, p.d]]
-    for (new_d, degree) in zip(new_degrees, [k_out, k_in, k])
-        new_d[r] -= degree
-        new_d[s] += degree
+    copy!(new_d_out, p.d_out)
+    copy!(new_d_in, p.d_in)
+
+    for (d_new, degree) in zip([new_d_out, new_d_in], [k_out, k_in])
+        d_new[r] -= degree
+        d_new[s] += degree
     end
+
     compute_delta_entropy(
-        p, r, s, M_r_col, M_s_col, M_r_row, M_s_row, new_degrees[1], new_degrees[2],
+        p, r, s, M_r_col, M_s_col, M_r_row, M_s_row, new_d_out, new_d_in,
         count_log
     )
 end
@@ -403,8 +410,8 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
     while optimal_num_blocks_found == false
         println("Merging down from $(current_partition.B) to $(current_partition.B - num_blocks_to_merge)")
         @timeit timer "agglomerative_updates" current_partition = agglomerative_updates(
-            current_partition, num_blocks_to_merge, config, count_log,
-            num_agg_proposals_per_block, num_block_reduction_rate
+            current_partition, num_blocks_to_merge, new_d_out, new_d_in,
+            config, count_log, num_agg_proposals_per_block, num_block_reduction_rate
         )
 
         nodal_itr_delta_entropy = zeros(max_num_nodal_itr)
