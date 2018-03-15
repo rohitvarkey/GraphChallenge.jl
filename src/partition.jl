@@ -83,7 +83,7 @@ function agglomerative_updates{T}(
     num_blocks = p.B
     best_merge_for_each_block = fill(-1, num_blocks)
     delta_entropy_for_each_block = fill(Inf, num_blocks)
-    for current_block = 1:num_blocks
+    @threads for current_block = 1:num_blocks
         agglomerative_updates_kernel(
             p, current_block, best_merge_for_each_block,
             delta_entropy_for_each_block, num_agg_proposals_per_block,
@@ -419,7 +419,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
             nodal_itr_delta_entropy[nodal_itr] = 0
             b_new::Vector{Int64} = copy(current_partition.b)
 
-            for current_node::Int64 in vertices(g)
+            @threads for current_node::Int64 in vertices(g)
                 nodal_update_kernel(
                     current_node, current_partition, g, β, b_new,
                     outneighbors(g, current_node), vertex_in_neighbors[current_node],
