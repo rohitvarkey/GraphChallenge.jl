@@ -1,5 +1,6 @@
 using Base.Threads
 using TimerOutputs
+using DataFrames
 
 # Fall through
 function initial_setup(x)
@@ -406,12 +407,15 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
     new_d_in = [similar(current_partition.d_in) for i=1:Threads.nthreads()]
     new_d = [similar(current_partition.d) for i=1:Threads.nthreads()]
 
+    df = DataFrame(M_size = [], nodal_itr = [], nnz = [], sparse_rows_changed = [], sparse_entries_flipped = [])
     while optimal_num_blocks_found == false
         println("Merging down from $(current_partition.B) to $(current_partition.B - num_blocks_to_merge)")
         @timeit timer "agglomerative_updates" current_partition = agglomerative_updates(
             current_partition, num_blocks_to_merge, new_d_out, new_d_in,
             config, count_log, num_agg_proposals_per_block, num_block_reduction_rate
         )
+        println("Number of nonzero entries in newly created M: $(countnz(current_partition.M))")
+        push!(df, [size(current_partition.M, 1), 0, countnz(current_partition.M), 0, 0])
         total_num_nodal_moves::Int64 = 0
         nodal_itr_delta_entropy = zeros(max_num_nodal_itr)
         @timeit timer "nodal_updates" for nodal_itr in 1:max_num_nodal_itr
@@ -429,6 +433,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
                 )
             end
             total_num_nodal_moves += sum(num_nodal_moves)
+            old_M = copy(current_partition.M)
             # Sequential Aggregation of updates
             for (vertex::Int64, new_block::Int64) in enumerate(b_new)
                 current_block = current_partition.b[vertex]
@@ -469,6 +474,11 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
             compute_block_degrees(current_partition, count_log)
             compute_overall_entropy(current_partition, count_log)
             #println("Partition after recomputations is $(current_partition)")
+            nnz, sparse_rows_changed, sparse_entries_flipped = sparsity_change(old_M, current_partition.M)
+            push!(df, [size(current_partition.M, 1), nodal_itr, nnz, sparse_rows_changed, sparse_entries_flipped])
+            println("Number of nonzero entries in updated M: $(nnz)")
+            println("Number of rows in which atleast one nonzero changed to zero: $(sparse_rows_changed)")
+            println("Number of entries that changed sparsity: $(sparse_entries_flipped)")
             # exit MCMC if the recent change in entropy falls below a small fraction of the overall entropy
             println("Itr: $nodal_itr, nodal moves: $(sum(num_nodal_moves)), Δ: $(nodal_itr_delta_entropy[nodal_itr]), fraction: $(-nodal_itr_delta_entropy[nodal_itr]/current_partition.S)")
             if (nodal_itr >= delta_entropy_moving_avg_window)
@@ -502,9 +512,9 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
             println("Total number of nodal moves: ", total_num_nodal_moves)
             println("Final partition: ", new_partition)
             println("Best partition :", new_partition.b, "Num blocks : ", new_partition.B)
-            return new_partition, count_log
+            return new_partition, count_log, df
         end
         current_partition = new_partition
     end
-    current_partition, count_log
+    current_partition, count_log, df
 end

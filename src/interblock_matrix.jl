@@ -230,3 +230,27 @@ end
 function zeros_interblock_edge_matrix(::Type{Array{Int64, 2}}, size::Int64)
     return zeros(Int64, size, size)
 end
+
+function sparsity_change(old_M::Array{Int64, 2}, new_M::Array{Int64, 2})
+    sparse_rows_changed = 0
+    sparse_entries_flipped = 0
+    for row = 1:size(old_M, 1)
+        for col = 1:size(old_M, 2)
+            # number of flips from nonzero to 0
+            if old_M[row, col] != 0 && new_M[row, col] == 0
+                sparse_rows_changed += 1
+                break
+            end
+        end
+    end
+
+    for col = 1:size(old_M, 2)
+        for row = 1:size(old_M, 2)
+            if (old_M[row, col] == 0 && new_M[row, col] != 0) || (old_M[row, col] != 0 && new_M[row, col] == 0)
+                sparse_entries_flipped += 1
+            end
+        end
+    end
+
+    countnz(new_M), sparse_rows_changed, sparse_entries_flipped
+end
