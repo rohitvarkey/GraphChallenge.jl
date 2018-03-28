@@ -1,4 +1,4 @@
-immutable SparseUpdateIBEM
+type SparseUpdateIBEM
     M::SparseMatrixCSC{Int64, Int64}
     C::Vector{Int64}
     A::SparseMatrixCSC{Int64, Int64}
@@ -212,20 +212,30 @@ function compute_hastings_correction(
 end
 
 function update_partition(
-    M::SparseUpdateIBEM, r::Int64, s::Int64,
-    M_r_col::SparseVector{Int64, Int64}, M_s_col::SparseVector{Int64, Int64},
-    M_r_row::SparseVector{Int64, Int64}, M_s_row::SparseVector{Int64, Int64},
-    count_log::CountLog
+    p::Partition{SparseUpdateIBEM}, b_new::Vector{Int64},
+    g::SimpleWeightedDiGraph, vertex_in_neighbors, count_log::CountLog
     )
-    M.M[:, r] = M_r_col
-    M.M[r, :] = M_r_row
-    M.M[:, s] = M_s_col
-    M.M[s, :] = M_s_row
-    # TODO: dropzeros is a O(M.size, nnz) operation. Maybe do it only at certain
-    # intervals
-    dropzeros!(M.M)
+    # Create Δ from current_partition.b and b_new.
+    p.M.length = 0
+    for (vertex, block) in enumerate(b_new)
+        if block != p.b[vertex]
+            p.M.length += 1
+            p.M.D[1, p.M.length] = vertex
+            p.M.D[2, p.M.length] = p.b[vertex]
+            p.M.D[3, p.M.length] = block
+        end
+    end
+    Δ = sparse(
+        cat(p.M.D[1, 1:p.M.length], p.M.D[1, 1:p.M.length]),
+        cat(p.M.D[2, 1:p.M.length], p.M.D[3, 1:p.M.length]),
+        cat(fill(-1, p.M.length), ones(Int64, p.M.length)),
+        size(p.b_new),
+        p.B
+    )
+    C = sparse(1:size(p.b,1), p.b, 1)
+    p.M.M = p.M.M + (Δ' * p.M.A * p.b + p.b' * p.M.A * Δ + Δ' * p.M.A * Δ)'
     #info("Updated partition")
-    M
+    p
 end
 
 function zeros_interblock_edge_matrix(::Type{SparseUpdateIBEM}, size::Int64)
