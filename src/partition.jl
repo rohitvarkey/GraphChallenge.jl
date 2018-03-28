@@ -13,6 +13,48 @@ function zeros_interblock_edge_matrix(M, size, config::Void)
     zeros_interblock_edge_matrix(M, size)
 end
 
+function update_partition{T}(
+    current_partition::Partition{T}, b_new::Vector{Int64}, g::SimpleWeightedDiGraph,
+    vertex_in_neighbors, count_log::CountLog
+    )
+    for (vertex::Int64, new_block::Int64) in enumerate(b_new)
+        current_block = current_partition.b[vertex]
+        if new_block != current_block
+            # perform update
+            # TODO: More efficient way of doing this?
+            out_n::Vector{Int64} = outneighbors(g, vertex)
+            in_n::Vector{Int64} = vertex_in_neighbors[vertex]
+            out_wts = [
+                floor(Int64, get_weight(g, vertex, n))::Int64 for n in out_n
+            ]
+            in_wts = [
+                floor(Int64, get_weight(g, n, vertex))::Int64 for n in in_n
+            ]
+            blocks_out_count_map = countmap(
+                current_partition.b[out_n], Distributions.weights(out_wts)
+            )
+            blocks_in_count_map = countmap(
+                current_partition.b[in_n], Distributions.weights(in_wts)
+            )
+            self_edge_weight = floor(
+                Int64, get_weight(g, vertex, vertex)
+            )
+            M_r_row, M_r_col, M_s_row, M_s_col = compute_new_matrix(
+                current_partition, current_block, new_block,
+                blocks_out_count_map, blocks_in_count_map,
+                self_edge_weight, count_log
+            )
+            current_partition.M = update_partition(
+                current_partition.M, current_block, new_block,
+                M_r_col, M_s_col, M_r_row, M_s_row, count_log
+            )
+            current_partition.b[vertex] = new_block
+            #println("Updated $vertex from $(current_block) to $(new_block)")
+            #println("Partition is $(current_partition)")
+        end
+    end
+end
+
 function random_neighbor(r::Int64, num_blocks::Int64)
     s = rand(1:num_blocks)
     if s == r && r != 1
@@ -430,42 +472,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
             end
             total_num_nodal_moves += sum(num_nodal_moves)
             # Sequential Aggregation of updates
-            for (vertex::Int64, new_block::Int64) in enumerate(b_new)
-                current_block = current_partition.b[vertex]
-                if new_block != current_block
-                    # perform update
-                    # TODO: More efficient way of doing this?
-                    out_n::Vector{Int64} = outneighbors(g, vertex)
-                    in_n::Vector{Int64} = vertex_in_neighbors[vertex]
-                    out_wts = [
-                        floor(Int64, get_weight(g, vertex, n))::Int64 for n in out_n
-                    ]
-                    in_wts = [
-                        floor(Int64, get_weight(g, n, vertex))::Int64 for n in in_n
-                    ]
-                    blocks_out_count_map = countmap(
-                        current_partition.b[out_n], Distributions.weights(out_wts)
-                    )
-                    blocks_in_count_map = countmap(
-                        current_partition.b[in_n], Distributions.weights(in_wts)
-                    )
-                    self_edge_weight = floor(
-                        Int64, get_weight(g, vertex, vertex)
-                    )
-                    M_r_row, M_r_col, M_s_row, M_s_col = compute_new_matrix(
-                        current_partition, current_block, new_block,
-                        blocks_out_count_map, blocks_in_count_map,
-                        self_edge_weight, count_log
-                    )
-                    current_partition.M = update_partition(
-                        current_partition.M, current_block, new_block,
-                        M_r_col, M_s_col, M_r_row, M_s_row, count_log
-                    )
-                    current_partition.b[vertex] = new_block
-                    #println("Updated $vertex from $(current_block) to $(new_block)")
-                    #println("Partition is $(current_partition)")
-                end
-            end
+            update_partition(current_partition, b_new, g, vertex_in_neighbors, count_log)
             compute_block_degrees(current_partition, count_log)
             compute_overall_entropy(current_partition, count_log)
             #println("Partition after recomputations is $(current_partition)")
