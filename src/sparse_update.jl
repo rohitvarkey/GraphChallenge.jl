@@ -10,7 +10,7 @@ function initialize_edge_counts(
     _::Type{SparseUpdateIBEM}, g::SimpleWeightedDiGraph, B::Int64,
     b::Vector{Int64}, count_log::CountLog
     )
-    C = sparse(1:size(b,1), b, 1)
+    C = sparse(1:size(b,1), b, 1, size(b, 1), B)
     A = adjacency_matrix(g)
     M = (C' * A * C)'
     D = zeros(Int64, 3, nv(g))
@@ -226,16 +226,20 @@ function update_partition(
         end
     end
     Δ = sparse(
-        cat(p.M.D[1, 1:p.M.length], p.M.D[1, 1:p.M.length]),
-        cat(p.M.D[2, 1:p.M.length], p.M.D[3, 1:p.M.length]),
-        cat(fill(-1, p.M.length), ones(Int64, p.M.length)),
-        size(p.b_new),
+        cat(1, p.M.D[1, 1:p.M.length], p.M.D[1, 1:p.M.length]),
+        cat(1, p.M.D[2, 1:p.M.length], p.M.D[3, 1:p.M.length]),
+        cat(1, fill(-1, p.M.length), ones(Int64, p.M.length)),
+        size(b_new, 1),
         p.B
     )
-    C = sparse(1:size(p.b,1), p.b, 1)
-    p.M.M = p.M.M + (Δ' * p.M.A * p.b + p.b' * p.M.A * Δ + Δ' * p.M.A * Δ)'
-    #info("Updated partition")
-    p
+    C = sparse(1:size(p.b, 1), p.b, 1, size(p.b, 1), p.B)
+    @show size(Δ), size(C), size(p.M.A)
+    p.M.M = p.M.M + (Δ' * p.M.A * C + C' * p.M.A * Δ + Δ' * p.M.A * Δ)'
+    #p.M.C = copy(b_new) #Is this a necessary copy?
+    dropzeros!(p.M.M)
+    p.b = b_new
+    compute_block_degrees(p, count_log)
+    compute_overall_entropy(p, count_log)
 end
 
 function zeros_interblock_edge_matrix(::Type{SparseUpdateIBEM}, size::Int64)

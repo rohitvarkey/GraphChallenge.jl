@@ -3,7 +3,7 @@ function initialize_edge_counts(
     _::Type{SparseMatrixCSC{Int64, Int64}}, g::SimpleWeightedDiGraph, B::Int64,
     b::Vector{Int64}, count_log::CountLog
     )
-    C = sparse(1:size(b,1), b, 1)
+    C = sparse(1:size(b,1), b, 1, size(b, 1), B)
     A = adjacency_matrix(g)
     M = (C' * A * C)'
     M
@@ -204,7 +204,7 @@ end
 function update_partition(
     M::SparseMatrixCSC{Int64, Int64}, r::Int64, s::Int64,
     M_r_col::SparseVector{Int64, Int64}, M_s_col::SparseVector{Int64, Int64},
-    M_r_row::SparseVector{Int64, Int64}, M_s_row::SparseVector{Int64, Int64}, 
+    M_r_row::SparseVector{Int64, Int64}, M_s_row::SparseVector{Int64, Int64},
     count_log::CountLog
     )
     M[:, r] = M_r_col
