@@ -9,6 +9,7 @@ const BACKEND_NAMES = Dict(
     InterblockEdgeCountVectorDict => "Vector Dict",
     InterblockEdgeCountPostgres => "Postgres",
     SparseMatrixCSC{Int64, Int64} => "Sparse Matrix",
+    SparseUpdateIBEM => "Sparse Update",
 )
 
 function static_partition_experiment(T::Type, num_nodes::Int64; plot_file="blocks.svg")
