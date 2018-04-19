@@ -474,7 +474,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
             end
             total_num_nodal_moves += sum(num_nodal_moves)
             # Sequential Aggregation of updates
-            update_partition(current_partition, b_new, g, vertex_in_neighbors, count_log)
+            @timeit timer "update_partition" update_partition(current_partition, b_new, g, vertex_in_neighbors, count_log)
             #println("Partition after recomputations is $(current_partition)")
             # exit MCMC if the recent change in entropy falls below a small fraction of the overall entropy
             println("Itr: $nodal_itr, nodal moves: $(sum(num_nodal_moves)), Δ: $(nodal_itr_delta_entropy[nodal_itr]), fraction: $(-nodal_itr_delta_entropy[nodal_itr]/current_partition.S)")
