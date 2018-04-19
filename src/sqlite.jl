@@ -272,7 +272,8 @@ function compute_new_matrix_agglomerative(
 end
 
 function compute_multinomial_probs(
-    p::Partition{InterblockEdgeCountSQLite}, vertex::Int64, count_log::CountLog
+    p::Partition{InterblockEdgeCountSQLite}, vertex::Int64,
+    probs::Vector{Float64}, count_log::CountLog
     )
     out_counts = SQLite.query(
         p.M.db,
@@ -288,7 +289,9 @@ function compute_multinomial_probs(
         dst_block=$vertex and block_num=$(p.B);
         """
     )
-    probs = zeros(Int64, p.B)
+    for i = 1:length(probs)
+        probs[i] = 0.0
+    end
     for counts in (out_counts, in_counts)
         for row in eachrow(counts)
             probs[row[:neighbor]] += row[:edgecount]

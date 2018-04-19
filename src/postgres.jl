@@ -273,7 +273,8 @@ function compute_new_matrix_agglomerative(
 end
 
 function compute_multinomial_probs(
-    p::Partition{InterblockEdgeCountPostgres}, vertex::Int64, count_log::CountLog
+    p::Partition{InterblockEdgeCountPostgres}, vertex::Int64, probs::Vector{Float64},
+    count_log::CountLog
     )
     out_counts = fetch!(
         NamedTuple,
@@ -291,7 +292,9 @@ function compute_multinomial_probs(
         """
         )
     )
-    probs = zeros(Int64, p.B)
+    for i = 1:length(probs)
+        probs[i] = 0.0
+    end
     for counts in (out_counts, in_counts)
         for (neighbor, edgecount) in zip(counts[:neighbor], counts[:edgecount])
             probs[neighbor] += edgecount

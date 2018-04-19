@@ -8,7 +8,7 @@ using StatsBase
 export load_graph!, load_graph, initialize_edge_counts, compute_block_degrees,
        partition, evaluate_partition, plotbeliefs, static_partition_experiment,
        InterblockEdgeCountDictDict, InterblockEdgeCountVectorDict,
-       InterblockEdgeCountStinger, InterblockEdgeCountPostgres,
+       InterblockEdgeCountStinger, InterblockEdgeCountPostgres, SparseUpdateIBEM,
        CountLog, Partition
 
 # package code goes here
@@ -23,6 +23,7 @@ include("stinger.jl")
 include("postgres.jl")
 include("sqlite.jl")
 include("sparse_matrix.jl")
+include("sparse_update.jl")
 include("partition.jl")
 #include("plot.jl")
 include("evaluate.jl")

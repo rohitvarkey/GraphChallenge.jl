@@ -58,10 +58,10 @@ function compute_new_matrix(
     count_log::CountLog
     )
     #TODO: Figure out how to count edges traversed here.
-    M_r_row = copy(p.M[r, :])
-    M_r_col = copy(p.M[:, r])
-    M_s_row = copy(p.M[s, :])
-    M_s_col = copy(p.M[:, s])
+    M_r_row = p.M[r, :]
+    M_r_col = p.M[:, r]
+    M_s_row = p.M[s, :]
+    M_s_col = p.M[:, s]
 
     for (block, out_count) in out_block_count_map
         M_r_col[block] -= out_count
@@ -105,8 +105,8 @@ function compute_new_matrix_agglomerative(
     M_r_row = zeros(Int64, p.B)
     M_r_col = zeros(Int64, p.B)
 
-    M_s_row = copy(p.M[s, :])
-    M_s_col = copy(p.M[:, s])
+    M_s_row = p.M[s, :]
+    M_s_col = p.M[:, s]
 
     #TODO: Optimize this
     M_s_row += p.M[r, :]
@@ -122,10 +122,12 @@ function compute_new_matrix_agglomerative(
 end
 
 function compute_multinomial_probs(
-    p::Partition{Array{Int64, 2}}, vertex::Int64, count_log::CountLog
+    p::Partition{Array{Int64, 2}}, vertex::Int64, m::Vector{Float64}, count_log::CountLog
     )
     count_log.edges_traversed += (size(p.M, 1) + size(p.M, 2))
-    return (p.M[:, vertex] .+ p.M[vertex, :]) ./ p.d[vertex]
+    for neighbor = 1:p.B
+        m[neighbor] = (p.M[neighbor, vertex] + p.M[vertex, neighbor]) / p.d[vertex]
+    end
 end
 
 function compute_delta_entropy(
