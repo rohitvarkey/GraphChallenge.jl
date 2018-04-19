@@ -257,9 +257,12 @@ end
 
 
 function compute_multinomial_probs(
-    p::Partition{InterblockEdgeCountStinger}, block::Int64, count_log::CountLog
+    p::Partition{InterblockEdgeCountStinger}, block::Int64,
+    probabilities::Vector{Float64}, count_log::CountLog
     )
-    probabilities = zeros(length(p.d))
+    for i = 1:p.B
+        probabilities[i] = 0.0
+    end
     foralledges(p.M.s, block) do edge, src, etype
         count_log.edges_traversed += 1
         direction, neighbor = edgeparse(edge)

@@ -107,11 +107,13 @@ function compute_new_matrix_agglomerative(
 end
 
 function compute_multinomial_probs(
-    p::Partition{SparseMatrixCSC{Int64, Int64}}, vertex::Int64, count_log::CountLog
+    p::Partition{SparseMatrixCSC{Int64, Int64}}, vertex::Int64, m::Vector{Float64}, count_log::CountLog
     )
     #FIXME: Correct edges traversed counts.
     #count_log.edges_traversed += (size(p.M, 1) + size(p.M, 2))
-    return full((p.M[:, vertex] .+ p.M[vertex, :]) ./ p.d[vertex])
+    for neighbor = 1:p.B
+        m[neighbor] = (p.M[neighbor, vertex] + p.M[vertex, neighbor]) / p.d[vertex]
+    end
 end
 
 function compute_delta_entropy(

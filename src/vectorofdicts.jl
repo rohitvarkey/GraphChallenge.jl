@@ -218,9 +218,11 @@ end
 
 function compute_multinomial_probs(
     p::Partition{InterblockEdgeCountVectorDict}, block::Int64,
-    count_log::CountLog
+    probabilities::Vector{Float64}, count_log::CountLog
     )
-    probabilities = zeros(length(p.d))
+    for i = 1:p.B
+        probabilities[i] = 0.0
+    end
     for (out_neighbor, edgecount) in p.M.block_out_edges[block]
         probabilities[out_neighbor] += edgecount/p.d[block]
     end

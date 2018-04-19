@@ -57,13 +57,14 @@ function agglomerative_updates_kernel{T}(
     num_agg_proposals_per_block::Int64,
     new_d_out::Vector{Int64},
     new_d_in::Vector{Int64},
+    m::Vector{Float64},
     count_log::CountLog
     )
     neighbors, k_out, k_in, k = compute_block_neighbors_and_degrees(
         p, current_block, count_log
     )
     for proposal_idx = 1:num_agg_proposals_per_block
-        proposal = propose_new_partition_agg(p, current_block, neighbors, count_log)
+        proposal = propose_new_partition_agg(p, current_block, neighbors, m, count_log)
         Δ = evaluate_proposal_agg(
             p, current_block, proposal, k, k_in, k_out, new_d_out, new_d_in, count_log
         )
@@ -76,7 +77,7 @@ end
 
 function agglomerative_updates{T}(
     p::Partition{T}, num_blocks_to_merge::Int64, new_d_out,
-    new_d_in, config, count_log::CountLog,
+    new_d_in, multinomial_probs, config, count_log::CountLog,
     num_agg_proposals_per_block::Int64 = 10,
     num_block_reduction_rate::Float64 = 0.5
     )
@@ -88,7 +89,7 @@ function agglomerative_updates{T}(
             p, current_block, best_merge_for_each_block,
             delta_entropy_for_each_block, num_agg_proposals_per_block,
             new_d_out[Threads.threadid()], new_d_in[Threads.threadid()],
-            count_log
+            multinomial_probs[Threads.threadid()], count_log
         )
     end
     # Get the new block assignments
@@ -149,7 +150,7 @@ function prepare_for_partition_on_next_num_blocks{T}(
 end
 
 function propose_new_partition_agg{T}(
-    p::Partition{T}, r::Int64, neighbors::Vector{Int64}, count_log::CountLog
+    p::Partition{T}, r::Int64, neighbors::Vector{Int64}, multinomial_prob::Vector{Float64}, count_log::CountLog
     )
     # Pick a neighbor randomly
     if length(neighbors) == 0
@@ -160,7 +161,7 @@ function propose_new_partition_agg{T}(
     if rand() < p.B / (p.d[u] + p.B)
         return random_neighbor(r, p.B)
     else
-        multinomial_prob = compute_multinomial_probs(p, u, count_log)
+        compute_multinomial_probs(p, u, multinomial_prob, count_log)
         multinomial_prob[r] = 0
         if sum(multinomial_prob) == 0
             return random_neighbor(r, p.B)
@@ -175,7 +176,7 @@ end
 
 function propose_new_partition_nodal{T}(
     p::Partition{T}, r::Int64, neighbors::Vector{Int64}, wts::Vector{Int64},
-    count_log::CountLog
+    multinomial_prob::Vector{Float64}, count_log::CountLog
     )
 
     # Pick a neighbor randomly
@@ -187,7 +188,7 @@ function propose_new_partition_nodal{T}(
     if rand() < p.B / (p.d[u] + p.B)
         return random_neighbor(r, p.B)
     else
-        multinomial_prob = compute_multinomial_probs(p, u, count_log)
+        compute_multinomial_probs(p, u, multinomial_prob, count_log)
         #multinomial_prob[r] = 0
         if sum(multinomial_prob) == 0
             return random_neighbor(r, p.B)
@@ -273,6 +274,7 @@ function nodal_update_kernel{T}(
     new_d_out::Vector{Int64},
     new_d_in::Vector{Int64},
     new_d::Vector{Int64},
+    multinomial_prob::Vector{Float64},
     count_log::CountLog
     )
     current_block = current_partition.b[current_node]
@@ -284,7 +286,7 @@ function nodal_update_kernel{T}(
     ]
     proposal = propose_new_partition_nodal(
         current_partition, current_block, vcat(out_n, in_n),
-        vcat(out_wts, in_wts), count_log
+        vcat(out_wts, in_wts), multinomial_prob, count_log
     )
     #println("proposal: $proposal, current:$current_block")
     if (proposal != current_block)
@@ -449,13 +451,14 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
     new_d_out = [similar(current_partition.d_out) for i=1:Threads.nthreads()]
     new_d_in = [similar(current_partition.d_in) for i=1:Threads.nthreads()]
     new_d = [similar(current_partition.d) for i=1:Threads.nthreads()]
-
     while optimal_num_blocks_found == false
         println("Merging down from $(current_partition.B) to $(current_partition.B - num_blocks_to_merge)")
+        multinomial_probs = [zeros(current_partition.B) for i=1:Threads.nthreads()]
         @timeit timer "agglomerative_updates" current_partition = agglomerative_updates(
-            current_partition, num_blocks_to_merge, new_d_out, new_d_in,
+            current_partition, num_blocks_to_merge, new_d_out, new_d_in, multinomial_probs,
             config, count_log, num_agg_proposals_per_block, num_block_reduction_rate
         )
+        multinomial_probs = [zeros(current_partition.B) for i=1:Threads.nthreads()]
         total_num_nodal_moves::Int64 = 0
         nodal_itr_delta_entropy = zeros(max_num_nodal_itr)
         @timeit timer "nodal_updates" for nodal_itr in 1:max_num_nodal_itr
@@ -469,7 +472,8 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
                     outneighbors(g, current_node), vertex_in_neighbors[current_node],
                     num_nodal_moves, nodal_itr_delta_entropy, nodal_itr,
                     new_d_out[Threads.threadid()], new_d_in[Threads.threadid()],
-                    new_d[Threads.threadid()], count_log
+                    new_d[Threads.threadid()], multinomial_probs[Threads.threadid()],
+                    count_log
                 )
             end
             total_num_nodal_moves += sum(num_nodal_moves)
