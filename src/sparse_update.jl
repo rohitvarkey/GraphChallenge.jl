@@ -22,6 +22,7 @@ function compute_block_neighbors_and_degrees(
     block::Int64,
     count_log::CountLog
     )
+
     out_neighbors = findn(p.M.M[:, block])
     in_neighbors = findn(p.M.M[block, :])
     neighbors = collect(Set(out_neighbors) ∪ Set(in_neighbors))
@@ -53,10 +54,10 @@ function compute_new_matrix(
     count_log::CountLog
     )
     #TODO: Figure out how to count edges traversed here.
-    M_r_row = copy(p.M.M[r, :])
-    M_r_col = copy(p.M.M[:, r])
-    M_s_row = copy(p.M.M[s, :])
-    M_s_col = copy(p.M.M[:, s])
+    M_r_row = p.M.M[r, :]
+    M_r_col = p.M.M[:, r]
+    M_s_row = p.M.M[s, :]
+    M_s_col = p.M.M[:, s]
 
     for (block, out_count) in out_block_count_map
         M_r_col[block] -= out_count
@@ -100,8 +101,8 @@ function compute_new_matrix_agglomerative(
     M_r_row = sparse(zeros(Int64, p.B))
     M_r_col = sparse(zeros(Int64, p.B))
 
-    M_s_row = copy(p.M.M[s, :])
-    M_s_col = copy(p.M.M[:, s])
+    M_s_row = p.M.M[s, :]
+    M_s_col = p.M.M[:, s]
 
     #TODO: Optimize this
     M_s_row += p.M.M[r, :]
