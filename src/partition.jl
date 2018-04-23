@@ -108,7 +108,7 @@ end
 
 function agglomerative_updates{T}(
     p::Partition{T}, num_blocks_to_merge::Int64, new_d_out,
-    new_d_in, multinomial_probs, config, count_log::CountLog,
+    new_d_in, multinomial_probs, config, count_log::CountLog, count_logs,
     num_agg_proposals_per_block::Int64 = 10,
     num_block_reduction_rate::Float64 = 0.5
     )
@@ -120,7 +120,7 @@ function agglomerative_updates{T}(
             p, current_block, best_merge_for_each_block,
             delta_entropy_for_each_block, num_agg_proposals_per_block,
             new_d_out[Threads.threadid()], new_d_in[Threads.threadid()],
-            multinomial_probs[Threads.threadid()], count_log
+            multinomial_probs[Threads.threadid()], count_logs[Threads.threadid()]
         )
     end
     # Get the new block assignments
@@ -482,6 +482,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
     new_d_out = [similar(current_partition.d_out) for i=1:Threads.nthreads()]
     new_d_in = [similar(current_partition.d_in) for i=1:Threads.nthreads()]
     new_d = [similar(current_partition.d) for i=1:Threads.nthreads()]
+    count_logs = [CountLog() for i=1:Threads.nthreads()]
 
     # FIXME: Correct way to seed these parallel rngs?
     for (idx, rng) in enumerate(RNGS)
@@ -493,7 +494,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
         multinomial_probs = [zeros(current_partition.B) for i=1:Threads.nthreads()]
         @timeit timer "agglomerative_updates" current_partition = agglomerative_updates(
             current_partition, num_blocks_to_merge, new_d_out, new_d_in, multinomial_probs,
-            config, count_log, num_agg_proposals_per_block, num_block_reduction_rate
+            config, count_log, count_logs, num_agg_proposals_per_block, num_block_reduction_rate
         )
         multinomial_probs = [zeros(current_partition.B) for i=1:Threads.nthreads()]
         total_num_nodal_moves::Int64 = 0
@@ -510,7 +511,7 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
                     num_nodal_moves, nodal_itr_delta_entropy, nodal_itr,
                     new_d_out[Threads.threadid()], new_d_in[Threads.threadid()],
                     new_d[Threads.threadid()], multinomial_probs[Threads.threadid()],
-                    count_log
+                    count_logs[Threads.threadid()]
                 )
             end
             total_num_nodal_moves += sum(num_nodal_moves)
