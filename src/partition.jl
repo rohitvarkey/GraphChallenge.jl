@@ -1,5 +1,36 @@
 using Base.Threads
 using TimerOutputs
+using RandomNumbers
+
+const RNGS = [Random123.Threefry4x() for i=1:Threads.nthreads()]
+
+# Rolling my own multinomial draw fn inspired from Distributions.multinom_rand!.
+# This version uses an AbstractRNG allowing the use of the Random123 family for
+# parallel safe random number generation
+function single_multinomial_draw(rng, p::Vector{Float64})
+    k = length(p)
+
+    rp = 1.0  # remaining total probability
+    i = 0
+
+    while i < k
+        i += 1
+        @inbounds pi = p[i]
+        if pi < rp
+            prob = rand(rng)
+            if prob < pi / rp
+                return i
+            end
+            rp -= pi
+        else
+            # In this case, we don't even have to sample
+            # from Binomial. Just assign remaining counts
+            # to xi.
+            return i
+        end
+    end
+    return i
+end
 
 # Fall through
 function initial_setup(x)
@@ -14,7 +45,7 @@ function zeros_interblock_edge_matrix(M, size, config::Void)
 end
 
 function random_neighbor(r::Int64, num_blocks::Int64)
-    s = rand(1:num_blocks)
+    s = rand(RNGS[Threads.threadid()], 1:num_blocks)
     if s == r && r != 1
         s = r - 1
     end
@@ -158,7 +189,7 @@ function propose_new_partition_agg{T}(
     end
     rand_neighbor = sample(neighbors, Distributions.weights(p.d[neighbors]./sum(p.d)))
     u = p.b[rand_neighbor]
-    if rand() < p.B / (p.d[u] + p.B)
+    if rand(RNGS[Threads.threadid()]) < p.B / (p.d[u] + p.B)
         return random_neighbor(r, p.B)
     else
         compute_multinomial_probs(p, u, multinomial_prob, count_log)
@@ -169,7 +200,7 @@ function propose_new_partition_agg{T}(
             # Normalize back
             multinomial_prob /= sum(multinomial_prob)
         end
-        s = findn(rand(Multinomial(1, multinomial_prob)))[1]
+        s = single_multinomial_draw(RNGS[Threads.threadid()], multinomial_prob)
     end
     return s
 end
@@ -185,7 +216,7 @@ function propose_new_partition_nodal{T}(
     end
     rand_neighbor = sample(neighbors, Distributions.weights(wts./sum(wts)))
     u = p.b[rand_neighbor]
-    if rand() < p.B / (p.d[u] + p.B)
+    if rand(RNGS[Threads.threadid()]) < p.B / (p.d[u] + p.B)
         return random_neighbor(r, p.B)
     else
         compute_multinomial_probs(p, u, multinomial_prob, count_log)
@@ -196,7 +227,7 @@ function propose_new_partition_nodal{T}(
             # Normalize back
             multinomial_prob /= sum(multinomial_prob)
         end
-        s = findn(rand(Multinomial(1, multinomial_prob)))[1]
+        s = single_multinomial_draw(RNGS[Threads.threadid()], multinomial_prob)
     end
     return s
 end
@@ -312,7 +343,7 @@ function nodal_update_kernel{T}(
             blocks_out_count_map, blocks_in_count_map,
             new_d_out, new_d_in, new_d, count_log
         )
-        random_value = rand(Uniform())
+        random_value = rand(RNGS[Threads.threadid()])
         if random_value <= p_accept
             num_nodal_moves[Threads.threadid()] += 1
             nodal_itr_delta_entropy[nodal_itr] += Δ
@@ -451,6 +482,12 @@ function partition(T::Type, g::SimpleWeightedDiGraph, num_nodes::Int64, timer::T
     new_d_out = [similar(current_partition.d_out) for i=1:Threads.nthreads()]
     new_d_in = [similar(current_partition.d_in) for i=1:Threads.nthreads()]
     new_d = [similar(current_partition.d) for i=1:Threads.nthreads()]
+
+    # FIXME: Correct way to seed these parallel rngs?
+    for (idx, rng) in enumerate(RNGS)
+        Random123.set_counter!(rng, idx)
+    end
+
     while optimal_num_blocks_found == false
         println("Merging down from $(current_partition.B) to $(current_partition.B - num_blocks_to_merge)")
         multinomial_probs = [zeros(current_partition.B) for i=1:Threads.nthreads()]
