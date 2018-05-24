@@ -88,6 +88,8 @@ immutable PerformanceMetrics <: Metrics
     agg_bytes::Int64
     nodal_time::Float64
     nodal_bytes::Int64
+    update_time::Float64
+    update_bytes::Int64
     iters::Int64
 end
 
